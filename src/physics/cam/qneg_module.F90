@@ -330,6 +330,9 @@ contains
     use constituents, only: qmin
     use cam_history,  only: outfld
 
+   !water isotopes:
+   use water_tracer_vars, only: trace_water
+
     !
     ! Input arguments
     !
@@ -353,6 +356,9 @@ contains
     integer :: i                 ! column index
     integer :: iw                ! i index of worst violator
     integer :: index             ! caller bin index
+    !water tracers/isotopes:
+    integer :: indxexc(ncol)     ! index array of points with excess flux
+    integer :: nptsexc           ! number of points with excess flux
     !
     real(r8):: worst             ! biggest violator
     real(r8):: excess(ncol)     ! Excess downward sfc latent heat flux
@@ -377,6 +383,7 @@ contains
     ! given moisture content of lowest level of the model atmosphere.
     !
     worst = worst_reset
+    nptsexc = 0 !initalize counter - water tracers
     do i = 1, ncol
        excess(i) = qflx(i,1) - (qmin(1) - qbot(i,1))/(ztodt*gravit*srfrpdel(i))
        !
@@ -384,6 +391,8 @@ contains
        ! excess from "qflx" and "lhflx" and add to "shflx".
        !
        if (excess(i) < 0._r8) then
+          nptsexc = nptsexc + 1 !add one to excess list - water tracers
+          indxexc(nptsexc) = i  !save column index      - water tracers
           if (excess(i) < worst) then
              iw = i
              worst = excess(i)
@@ -405,6 +414,10 @@ contains
        end do
        call outfld(trim(diag_names((2*pcnst)+1)), excess(1:ncol), ncol, lchnk)
     end if
+
+   ! Water tracers: where total has changed, modify tracers to conserve ratios
+   if (trace_water) call wtrc_qneg4(ncol, excess, nptsexc, indxexc, qflx)
+
     call t_stopf ('qneg4')
 
   end subroutine qneg4
@@ -487,5 +500,58 @@ contains
     num    = 0
     worst  = worst_reset
   end subroutine reset_stats_scalar
+
+  subroutine wtrc_qneg4(ncol, excess, nptsexc,indxexc, qflx)
+
+  use water_tracer_vars, only: wtrc_iatype, wtrc_nwset, iwspec, &
+                               wtrc_qmin, wisotope, wtrc_fixed_rstd
+  use water_types,    only: iwtvap
+  use water_isotopes, only: wiso_get_rstd
+
+  integer,  intent(in)    :: ncol
+  real(r8), intent(in)    :: excess(pcols)        ! Excess downward sfc latent heat flux
+  integer,  intent(in)    :: nptsexc              ! number of points with excess flux
+  integer,  intent(in)    :: indxexc(pcols)       ! index array of points with excess flux
+  real(r8), intent(inout) :: qflx (pcols,pcnst)   ! surface water flux (kg/m^2/s)
+
+  integer  :: m, ii, i
+  integer  :: ivap                ! isotope index
+  real(r8) :: qfxo(pcols,pcnst)   ! initial tracer flux
+  real(r8) :: rstd                ! standard ratio
+  real(r8) :: rat                 ! tracer ratio
+
+  ! Store old value to use as input for water tracers
+  qfxo(:ncol,:) = qflx(:ncol,:)
+
+  !loop over water tracers:
+  do ivap = 1, wtrc_nwset
+     m = wtrc_iatype(ivap, iwtvap) !determine water tracer index for vapor
+
+     !determine tracer standard ratio:
+     !------------------------
+     if(wisotope) then
+       rstd = wiso_get_rstd(iwspec(m))
+     else
+       rstd = wtrc_fixed_rstd(iwspec(m))
+     end if
+     !------------------------
+
+     !loop over all grid cells with excess flux:
+     do ii = 1, nptsexc 
+        i = indxexc(ii)
+        !Calculate water tracer/isotope ratio:
+        !------------
+        if (abs(qfxo(i,wtrc_iatype(1,iwtvap))) < wtrc_qmin) then
+          rat = rstd
+        else
+          rat = qfxo(i,m) / qfxo(i,wtrc_iatype(1,iwtvap))
+        end if
+        !------------
+        qflx(i,m) = qflx(i,m) - rat*excess(i) !remove excess flux, while conserving the ratio.
+     end do
+
+  end do
+
+  end subroutine wtrc_qneg4
 
 end module qneg_module

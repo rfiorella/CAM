@@ -150,7 +150,16 @@ subroutine zm_convr(lchnk   ,ncol    , &
                     ql      ,rliq    ,landfrac,                   &
                     org     ,orgt    ,org2d   ,  &
                     dif     ,dnlf    ,dnif    ,conv    , &
-                    aero    , rice)
+                    aero    , rice, &
+                    qu      , &
+                    qd      ,dz      ,rppe    ,eps0    , &     
+                    cu      ,evp     ,tu     ,td       ,jd      , &
+                    done    ,lel     ,jlcl   ,qs       ,qsthat  , &
+                    hmn     ,hsat   ,hsthat  ,wteu    , &
+                    wted    ,wtdu   ,wtmu    ,wtmd    ,wtcu     , &
+                    c0mask  ,wtrpd  ,qds     ,wtevp  )
+                
+
 !----------------------------------------------------------------------- 
 ! 
 ! Purpose: 
@@ -326,6 +335,37 @@ subroutine zm_convr(lchnk   ,ncol    , &
    real(r8), pointer :: orgt(:,:)   ! Only used if zm_org is true
    real(r8), pointer :: org2d(:,:)  ! Only used if zm_org is true
 
+   !Variables needed for Water tracers:
+   real(r8), intent(out) :: tu(pcols,pver)     !scattered updraft temperature
+   real(r8), intent(out) :: td(pcols,pver)     !scattered downdraft temperature
+   real(r8), intent(out) :: cu(pcols,pver)     !scattered version of cug 
+   real(r8), intent(out) :: evp(pcols,pver)    !scattered version of evp 
+   real(r8), intent(out) :: rppe(pcols,pver)   !g: rain production pre-evap
+   real(r8), intent(out) :: qsthat(pcols,pver) !g: qst at interfaces
+   real(r8), intent(out) :: hmn(pcols,pver)    !g: environmental moist static energy
+   real(r8), intent(out) :: hsat(pcols,pver)   !g: environmental saturation moist static energy
+   real(r8), intent(out) :: hsthat(pcols,pver) !g: hsat at interfaces
+   real(r8), intent(out) :: dz(pcols,pver)     !g: layer thickness [m]
+   real(r8), intent(out) :: eps0(pcols)        !g: not sure, comment later...
+   real(r8), intent(out) :: wteu(pcols,pver)   !g: eu pre-unit conversion
+   real(r8), intent(out) :: wted(pcols,pver)   !g: ed pre-unit conversion
+   real(r8), intent(out) :: wtdu(pcols,pver)   !g: du pre-unit conversion
+   real(r8), intent(out) :: wtmu(pcols,pver)   !g: mu pre-unit conversion
+   real(r8), intent(out) :: wtmd(pcols,pver)   !g: md pre-unit conversion
+   real(r8), intent(out) :: wtcu(pcols,pver)   !g: cu pre-unit conversion
+   real(r8), intent(out) :: wtevp(pcols,pver)  !g: evp pre-unit conversion
+   real(r8), intent(out) :: wtrpd(pcols,pver)  !g: rprd pre-unit conversion
+   real(r8), intent(out) :: c0mask(pcols)      !g: auto-conversion rates
+   logical,  intent(out) :: done(pcols,pver)   !g: end of updraft calculation loop
+   integer,  intent(out) :: lel(pcols)         ! w  index of highest theoretical convective plume.
+   integer,  intent(out) :: jlcl(pcols)        ! updraft LCL
+   integer,  intent(out) :: jd(pcols)          !wg downdraft initiation level index
+   real(r8), intent(out) :: qd(pcols,pver)     ! scattered grid slice of mixing ratio in downdraft.
+   real(r8), intent(out) :: qu(pcols,pver)     ! scattered grid slice of mixing ratio in updraft.
+   real(r8), intent(out) :: qs(pcols,pver)     ! wg grid slice of saturation mixing ratio.
+   real(r8), intent(out) :: qds(pcols,pver)    ! wg downdraft saturation mixing ratio.
+!----------------------------
+
    real(r8) zs(pcols)
    real(r8) dlg(pcols,pver)    ! gathrd version of the detraining cld h2o tend
    real(r8) pflxg(pcols,pverp) ! gather precip flux at each level
@@ -363,7 +403,7 @@ subroutine zm_convr(lchnk   ,ncol    , &
    real(r8) tl(pcols)                  ! w  row of parcel temperature at lcl.
 
    integer lcl(pcols)                  ! w  base level index of deep cumulus convection.
-   integer lel(pcols)                  ! w  index of highest theoretical convective plume.
+
    integer lon(pcols)                  ! w  index of onset level for deep convection.
    integer maxi(pcols)                 ! w  index of level with largest moist static energy.
 
@@ -383,12 +423,12 @@ subroutine zm_convr(lchnk   ,ncol    , &
    real(r8) vg(pcols,pver)             ! wg grid slice of gathered values of v.
    real(r8) cmeg(pcols,pver)
 
-   real(r8) rprdg(pcols,pver)           ! wg gathered rain production rate
+   real(r8) rprdg(pcols,pver)          ! wg gathered rain production rate
    real(r8) capeg(pcols)               ! wg gathered convective available potential energy.
    real(r8) tlg(pcols)                 ! wg grid slice of gathered values of tl.
-   real(r8) landfracg(pcols)            ! wg grid slice of landfrac  
+   real(r8) landfracg(pcols)           ! wg grid slice of landfrac  
 
-   integer lclg(pcols)       ! wg gathered values of lcl.
+   integer lclg(pcols)                 ! wg gathered values of lcl.
    integer lelg(pcols)
 !
 ! work fields arising from gathered calculations.
@@ -397,15 +437,15 @@ subroutine zm_convr(lchnk   ,ncol    , &
    real(r8) dsdt(pcols,pver)           ! wg dry static energy ("temp") tendency at gathered points.
 !      real(r8) alpha(pcols,pver)      ! array of vertical differencing used (=1. for upstream).
    real(r8) sd(pcols,pver)             ! wg grid slice of dry static energy in downdraft.
-   real(r8) qd(pcols,pver)             ! wg grid slice of mixing ratio in downdraft.
    real(r8) mc(pcols,pver)             ! wg net upward (scaled by mb) cloud mass flux.
    real(r8) qhat(pcols,pver)           ! wg grid slice of upper interface mixing ratio.
-   real(r8) qu(pcols,pver)             ! wg grid slice of mixing ratio in updraft.
    real(r8) su(pcols,pver)             ! wg grid slice of dry static energy in updraft.
-   real(r8) qs(pcols,pver)             ! wg grid slice of saturation mixing ratio.
+!   real(r8) qs(pcols,pver)             ! wg grid slice of saturation mixing ratio.
+!   real(r8) qu(pcols,pver)             ! wg grid slice of mixing ratio in updraft
+!   real(r8) qd(pcols,pver)             ! wg grid slice of mixing ratio in downdraft.
    real(r8) shat(pcols,pver)           ! wg grid slice of upper interface dry static energy.
-   real(r8) hmn(pcols,pver)            ! wg moist static energy.
-   real(r8) hsat(pcols,pver)           ! wg saturated moist static energy.
+!   real(r8) hmn(pcols,pver)            ! wg moist static energy.
+!   real(r8) hsat(pcols,pver)           ! wg saturated moist static energy.
    real(r8) qlg(pcols,pver)
    real(r8) dudt(pcols,pver)           ! wg u-wind tendency at gathered points.
    real(r8) dvdt(pcols,pver)           ! wg v-wind tendency at gathered points.
@@ -421,11 +461,15 @@ subroutine zm_convr(lchnk   ,ncol    , &
    real(r8) qldeg(pcols,pver)        ! cloud liquid water mixing ratio for detrainment (kg/kg)
    real(r8) mb(pcols)                ! wg cloud base mass flux.
 
-   integer jlcl(pcols)
+!   integer jlcl(pcols)
    integer j0(pcols)                 ! wg detrainment initiation level index.
-   integer jd(pcols)                 ! wg downdraft initiation level index.
+!   integer jd(pcols)                 ! wg downdraft initiation level index.
 
    real(r8) delt                     ! length of model time-step in seconds.
+
+   !water tracer variables:
+   real(r8) tug(pcols,pver)          ! wg updraft temperature (from su)
+   real(r8) tdg(pcols,pver)          ! wg downdraft temperature (from sd)
 
    integer i
    integer ii
@@ -545,6 +589,13 @@ subroutine zm_convr(lchnk   ,ncol    , &
          dnlf(i,k)  = 0._r8
          dnif(i,k)  = 0._r8
 
+         tug(i,k)   = 0._r8
+         tdg(i,k)   = 0._r8 
+         tu(i,k)    = t(i,k)
+         td(i,k)    = t(i,k)  
+         cu(i,k)    = 0._r8 
+         evp(i,k)   = 0._r8
+         wtcu(i,k)  = 0._r8 !water tracers
       end do
    end do
 
@@ -921,13 +972,21 @@ subroutine zm_convr(lchnk   ,ncol    , &
                maxg    ,j0      ,jd      ,rl      ,lengath , &
                rgas    ,grav    ,cpres   ,msg     , &
                pflxg   ,evpg    ,cug     ,rprdg   ,limcnv  ,landfracg , &
-               qldeg   ,aero    ,loc_conv,qhat    )
+               qldeg   ,aero    ,loc_conv,qhat ,&
+               tug     ,tdg     ,dz     ,rppe   ,eps0   , &
+               qsthat  ,hsthat  ,wtmu    ,wtdu    , &
+               wteu    ,wted    ,done,   wtmd     ,wtevp ,qds,c0mask)
+
 
    if (zmconv_microp) then
       do i = 1,lengath
          capeg(i) = capeg(i)+ loc_conv%dcape(i)
       end do
    end if
+
+!Needed for water tracers:
+wtcu(:,:) = cug(:,:)
+wtrpd(:,:) = rprdg(:,:)
 
 !
 ! convert detrainment from units of "1/m" to "1/mb".
@@ -942,6 +1001,8 @@ subroutine zm_convr(lchnk   ,ncol    , &
          cmeg (i,k) = cmeg (i,k)* (zfg(i,k)-zfg(i,k+1))/dp(i,k)
          rprdg(i,k) = rprdg(i,k)* (zfg(i,k)-zfg(i,k+1))/dp(i,k)
          evpg (i,k) = evpg (i,k)* (zfg(i,k)-zfg(i,k+1))/dp(i,k)
+         !Water tracers:
+         rppe(i,k) = rppe(i,k)* (zfg(i,k)-zfg(i,k+1))/dp(i,k)
       end do
    end do
 
@@ -1013,6 +1074,8 @@ subroutine zm_convr(lchnk   ,ncol    , &
          cug  (i,k)  = cug  (i,k)*mb(i)
          evpg (i,k)  = evpg (i,k)*mb(i)
          pflxg(i,k+1)= pflxg(i,k+1)*mb(i)*100._r8/grav
+         !water tracers:
+         rppe(i,k)  = rppe(i,k)*mb(i) 
 
 
          if ( zmconv_microp .and. mb(i).eq.0._r8) then
@@ -1189,6 +1252,10 @@ subroutine zm_convr(lchnk   ,ncol    , &
          mcon(ideep(i),k) = mc   (i,k)
          heat(ideep(i),k) = dsdt (i,k)*cpres
          dlf (ideep(i),k) = dlg  (i,k)
+         cu(ideep(i),k)   = cug(i,k)
+         evp(ideep(i),k)  = evpg(i,k)
+         tu(ideep(i),k)   = tug(i,k)
+         td(ideep(i),k)   = tdg(i,k)
          pflx(ideep(i),k) = pflxg(i,k)
          ql  (ideep(i),k) = qlg  (i,k)
       end do
@@ -1398,8 +1465,7 @@ subroutine zm_conv_evap(ncol,lchnk, &
      landfrac, &
      tend_s, tend_s_snwprd, tend_s_snwevmlt, tend_q, &
      prdprec, cldfrc, deltat,  &
-     prec, snow, ntprprd, ntsnprd, flxprec, flxsnow, prdsnow)
-
+     prec, snow, evpstore, substore, ntprprd, ntsnprd, flxprec, flxsnow, prdsnow)
 
 !-----------------------------------------------------------------------
 ! Compute tendencies due to evaporation of rain from ZM scheme
@@ -1414,7 +1480,7 @@ subroutine zm_conv_evap(ncol,lchnk, &
     use phys_grid, only: get_rlat_all_p
 
 !------------------------------Arguments--------------------------------
-    integer,intent(in) :: ncol, lchnk             ! number of columns and chunk index
+    integer,intent(in) :: ncol, lchnk                        ! number of columns and chunk index
     real(r8),intent(in), dimension(pcols,pver) :: t          ! temperature (K)
     real(r8),intent(in), dimension(pcols,pver) :: pmid       ! midpoint pressure (Pa) 
     real(r8),intent(in), dimension(pcols,pver) :: pdel       ! layer thickness (Pa)
@@ -1447,6 +1513,11 @@ subroutine zm_conv_evap(ncol,lchnk, &
     real(r8),intent(out) :: flxsnow(pcols,pverp)   ! Convective-scale flux of snow   at interfaces (kg/m2/s)
     real(r8),intent(out) :: ntprprd(pcols,pver)    ! net precip production in layer
     real(r8),intent(out) :: ntsnprd(pcols,pver)    ! net snow production in layer
+ 
+    !Needed for water tracers:   
+    real(r8), intent(out) :: evpstore(pcols,pver) !preciptation evaporation
+    real(r8), intent(out) :: substore(pcols,pver) !snow sublimation
+
     real(r8) :: work1                  ! temp variable (pjr)
     real(r8) :: work2                  ! temp variable (pjr)
 
@@ -1492,6 +1563,10 @@ subroutine zm_conv_evap(ncol,lchnk, &
     flxsnow(:ncol,1) = 0._r8
     evpvint(:ncol)   = 0._r8
     omsm=0.9999_r8
+
+!Zero water tracer variables (JN):
+ evpstore(:,:) = 0._r8
+ substore(:,:) = 0._r8
 
     do k = 1, pver
        do i = 1, ncol
@@ -1571,6 +1646,12 @@ subroutine zm_conv_evap(ncol,lchnk, &
           else
              evpsnow(i) = 0._r8
           end if
+
+!
+! Save the evaporative flux for water tracers
+!
+          evpstore(i,k) = evpprec(i) 
+          substore(i,k) = evpsnow(i)
 
 ! vertically integrated evaporation
           evpvint(i) = evpvint(i) + evpprec(i) * pdel(i,k)/gravit
@@ -2696,7 +2777,12 @@ subroutine cldprp(lchnk   , &
                   mx      ,j0      ,jd      ,rl      ,il2g    , &
                   rd      ,grav    ,cp      ,msg     , &
                   pflx    ,evp     ,cu      ,rprd    ,limcnv  ,landfrac, &
-                  qcde    ,aero    ,loc_conv,qhat  )
+                  qcde    , aero   ,loc_conv, qhat, &
+                  tut     ,tdt     ,dz      ,rppe    ,eps0    , &
+                  qsthat  ,hsthat  ,wtmu    ,wtdu    , &
+                  wteu    ,wted    ,wtdn    ,wtmd    ,wtevp   , &
+                  qds     ,c0mask)
+
 
 !----------------------------------------------------------------------- 
 ! 
@@ -2776,6 +2862,23 @@ subroutine cldprp(lchnk   , &
 
    type(zm_conv_t) :: loc_conv         
 
+   !Needed for Water Tracers:
+   real(r8), intent(out) :: tut(pcols,pver)  !updraft temperature (from su)
+   real(r8), intent(out) :: tdt(pcols,pver)  !downdarft temperature (from sd)
+   real(r8), intent(out) :: dz(pcols,pver)   !Layer thickness [m]
+   real(r8), intent(out) :: rppe(pcols,pver) !Rain production pre-evaporation
+   real(r8), intent(out) :: eps0(pcols)
+   real(r8), intent(out) :: qsthat(pcols,pver) !qsat at interfaces
+   real(r8), intent(out) :: hsthat(pcols,pver) !hsat at interfaces
+   real(r8), intent(out) :: qds(pcols,pver)    !saturation mixing ratio in downdraft
+   real(r8), intent(out) :: wtmu(pcols,pver)   !initial updraft mass flux value
+   real(r8), intent(out) :: wtdu(pcols,pver)   !detrainment in updraft beginning values
+   real(r8), intent(out) :: wteu(pcols,pver)   !entrainment in updraft beginning values
+   real(r8), intent(out) :: wted(pcols,pver)   !entrainment in dwndraft beginning values (not needed)
+   real(r8), intent(out) :: wtmd(pcols,pver)   !donwdraft mass flux beginning values
+   real(r8), intent(out) :: wtevp(pcols,pver)  !evaporation rate pre-precip limited
+   logical , intent(out) :: wtdn(pcols,pver)   !Endpoint of updraft loop 
+
    real(r8) rd                   ! gas constant for dry air
    real(r8) grav                 ! gravity
    real(r8) cp                   ! heat capacity of dry air
@@ -2784,7 +2887,7 @@ subroutine cldprp(lchnk   , &
 ! Local workspace
 !
    real(r8) gamma(pcols,pver)
-   real(r8) dz(pcols,pver)
+!   real(r8) dz(pcols,pver)
    real(r8) iprm(pcols,pver)
    real(r8) hu(pcols,pver)
    real(r8) hd(pcols,pver)
@@ -2796,21 +2899,22 @@ subroutine cldprp(lchnk   , &
    real(r8) i3(pcols,pver)
    real(r8) idag(pcols,pver)
    real(r8) i4(pcols,pver)
-   real(r8) qsthat(pcols,pver)
-   real(r8) hsthat(pcols,pver)
+ !  real(r8) qsthat(pcols,pver)
+ !  real(r8) hsthat(pcols,pver)
    real(r8) gamhat(pcols,pver)
    real(r8) cu(pcols,pver)
    real(r8) evp(pcols,pver)
    real(r8) cmeg(pcols,pver)
-   real(r8) qds(pcols,pver)
+ !  real(r8) qds(pcols,pver)
 ! RBN For c0mask
-   real(r8) c0mask(pcols)
+ !  real(r8) c0mask(pcols)
+   real(r8), intent(out) :: c0mask(pcols)
 
    real(r8) hmin(pcols)
    real(r8) expdif(pcols)
    real(r8) expnum(pcols)
    real(r8) ftemp(pcols)
-   real(r8) eps0(pcols)
+!   real(r8) eps0(pcols)
    real(r8) rmue(pcols)
    real(r8) zuef(pcols)
    real(r8) zdef(pcols)
@@ -2925,6 +3029,7 @@ subroutine cldprp(lchnk   , &
          ql(i,k) = 0._r8
          cu(i,k) = 0._r8
          evp(i,k) = 0._r8
+         wtevp(i,k) = 0._r8 !water tracers
          cmeg(i,k) = 0._r8
          qds(i,k) = q(i,k)
          md(i,k) = 0._r8
@@ -2935,6 +3040,8 @@ subroutine cldprp(lchnk   , &
          qu(i,k) = q(i,k)
          su(i,k) = s(i,k)
          call qsat_hPa(t(i,k), p(i,k), est(i), qst(i,k))
+         tdt(i,k) = sd(i,k) - grav/cp*zf(i,k) !water tracers
+         tut(i,k) = su(i,k) - grav/cp*zf(i,k)
 
          if ( p(i,k)-est(i) <= 0._r8 ) then
             qst(i,k) = 1.0_r8
@@ -3029,6 +3136,7 @@ subroutine cldprp(lchnk   , &
       jlcl(i) = lel(i)
       hmin(i) = 1.E6_r8
    end do
+
 !
 ! find the level of minimum hsat, where detrainment starts
 !
@@ -3280,9 +3388,11 @@ subroutine cldprp(lchnk   , &
             end if
          end do
       end do
- 
+
       do i = 1,il2g
          done(i) = .false.
+      !Water tracers:  (Probably not needed)
+      wtdn(i,:) = .false.
       end do
       kount = 0
       do k = pver,msg + 2,-1
@@ -3298,10 +3408,12 @@ subroutine cldprp(lchnk   , &
                                du(i,k)*qst(i,k))
                tu = su(i,k) - grav/cp*zf(i,k)
                call qsat_hPa(tu, (p(i,k)+p(i,k-1))/2._r8, estu, qstu)
+               tut(i,k) = tu !Needed for water tracer
                if (qu(i,k) >= qstu) then
                   jlcl(i) = k
                   kount = kount + 1
                   done(i) = .true.
+                  wtdn(i,k) = .true.
                end if
             end if
          end do
@@ -3312,6 +3424,7 @@ subroutine cldprp(lchnk   , &
          do i = 1,il2g
             if ((k > jt(i) .and. k <= jlcl(i)) .and. eps0(i) > 0._r8) then
                su(i,k) = shat(i,k) + (hu(i,k)-hsthat(i,k))/(cp* (1._r8+gamhat(i,k)))
+               tut(i,k) = su(i,k) - grav/cp*zf(i,k)
                qu(i,k) = qsthat(i,k) + gamhat(i,k)*(hu(i,k)-hsthat(i,k))/ &
                         (rl* (1._r8+gamhat(i,k)))
             end if
@@ -3471,6 +3584,10 @@ subroutine cldprp(lchnk   , &
       end if  ! zmconv_microp
 
    end do   !iter
+
+!Needed for water tracers:
+rppe(:,:) = rprd(:,:)
+
 !
 ! specify downdraft properties (no downdrafts if jd.ge.jb).
 ! scale down downward mass flux profile so that net flux
@@ -3518,6 +3635,14 @@ subroutine cldprp(lchnk   , &
          end if
       end do
    end do
+
+!Needed for water tracers (NOTE: may be able to move this out of cldprp - JN)
+wted(:,:) = ed(:,:)
+wtmd(:,:) = md(:,:)
+wtmu(:,:) = mu(:,:)
+wtdu(:,:) = du(:,:)
+wteu(:,:) = eu(:,:)
+
 !
 ! calculate updraft and downdraft properties.
 !
@@ -3533,10 +3658,11 @@ subroutine cldprp(lchnk   , &
    do i = 1,il2g
       qd(i,jd(i)) = qds(i,jd(i))
       sd(i,jd(i)) = (hd(i,jd(i)) - rl*qd(i,jd(i)))/cp
+      tdt(i,jd(i)) = sd(i,jd(i)) - grav/cp*zf(i,jd(i))
    end do
 !
    do k = msg + 2,pver
-      do i = 1,il2g
+     do i = 1,il2g
          if (k >= jd(i) .and. k < jb(i) .and. eps0(i) > 0._r8) then
             qd(i,k+1) = qds(i,k+1)
             evp(i,k) = -ed(i,k)*q(i,k) + (md(i,k)*qd(i,k)-md(i,k+1)*qd(i,k+1))/dz(i,k)
@@ -3546,10 +3672,15 @@ subroutine cldprp(lchnk   , &
               evp(i,k) = min(evp(i,k),rprd(i,k))
             end if
             sd(i,k+1) = ((rl/cp*evp(i,k)-ed(i,k)*s(i,k))*dz(i,k) + md(i,k)*sd(i,k))/mdt
+            tdt(i,k+1) = sd(i,k+1) - grav/cp*zf(i,k+1) 
             totevp(i) = totevp(i) - dz(i,k)*ed(i,k)*q(i,k)
          end if
       end do
    end do
+
+   !Needed for water tracers:
+   wtevp(:,:) = evp(:,:)
+
    do i = 1,il2g
 !*guang         totevp(i) = totevp(i) + md(i,jd(i))*q(i,jd(i)-1) -
       totevp(i) = totevp(i) + md(i,jd(i))*qd(i,jd(i)) - md(i,jb(i))*qd(i,jb(i))

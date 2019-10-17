@@ -671,6 +671,8 @@ subroutine vertical_diffusion_tend( &
   use pbl_utils,          only : virtem, calc_obklen, calc_ustar
   use upper_bc,           only : ubc_get_vals
   use coords_1d,          only : Coords1D
+  use water_tracer_vars,  only : trace_water, wtrc_nwset, wtrc_iatype
+  use water_types,        only : iwtvap
 
   ! --------------- !
   ! Input Arguments !
@@ -1098,6 +1100,14 @@ subroutine vertical_diffusion_tend( &
      shflux = 0._r8
      cflux(:,1) = 0._r8
      cflux(:,2:) = cam_in%cflx(:,2:)
+     !water tracers:
+     !-------------
+     if(trace_water) then
+       do m=1,wtrc_nwset
+         cflux(:,wtrc_iatype(m,iwtvap)) = 0._r8
+       end do
+     end if
+     !------------
   case default
      taux = cam_in%wsx
      tauy = cam_in%wsy

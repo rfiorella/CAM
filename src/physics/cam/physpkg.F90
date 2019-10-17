@@ -9,6 +9,7 @@ module physpkg
   ! 2005-10-17  B. Eaton       Add contents of inti.F90 to phys_init().  Add
   !                            initialization of grid info in phys_state.
   ! Nov 2010    A. Gettelman   Put micro/macro physics into separate routines
+  !
   !-----------------------------------------------------------------------
 
   use shr_kind_mod,     only: r8 => shr_kind_r8
@@ -146,6 +147,11 @@ contains
     use spcam_drivers,      only: spcam_register
     use offline_driver,     only: offline_driver_reg
 
+
+   !water isotopes:
+    use water_tracer_vars,  only: trace_water
+    use water_tracers,      only: wtrc_register
+
     !---------------------------Local variables-----------------------------
     !
     integer  :: m        ! loop index
@@ -244,6 +250,9 @@ contains
           call modal_aero_calcsize_reg()
           call modal_aero_wateruptake_reg()
        endif
+
+       ! water tracers/isotopes
+       if(trace_water) call wtrc_register()
 
        ! register chemical constituents including aerosols ...
        call chem_register()
@@ -743,6 +752,10 @@ contains
     use cam_abortutils,     only: endrun
     use nudging,            only: Nudge_Model, nudging_init
 
+    !water isotopes:   
+    use water_tracers,      only: wtrc_init
+    use water_tracer_vars,  only: trace_water
+
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
     type(physics_tend ), pointer       :: phys_tend(:)
@@ -897,6 +910,9 @@ contains
     call sslt_rebin_init()
     call tropopause_init()
     call dadadj_init()
+
+   !Water isotopes:
+    if (trace_water) call wtrc_init
 
     prec_dp_idx  = pbuf_get_index('PREC_DP')
     snow_dp_idx  = pbuf_get_index('SNOW_DP')
@@ -1262,6 +1278,10 @@ contains
     use co2_cycle,          only: co2_cycle_set_ptend
     use nudging,            only: Nudge_Model,Nudge_ON,nudging_timestep_tend
 
+    !Water Tracers:
+    use water_tracer_vars,  only: trace_water
+    use water_tracers,      only: wtrc_check_h2o, wtrc_chem_ch4ox_tend
+
     !
     ! Arguments
     !
@@ -1304,6 +1324,9 @@ contains
     real(r8) :: tmp_trac  (pcols,pver,pcnst) ! tmp space
     real(r8) :: tmp_pdel  (pcols,pver) ! tmp space
     real(r8) :: tmp_ps    (pcols)      ! tmp space
+
+   !Water Tracers
+    logical :: isOK                    ! Used to check that water tracer mass is being conserved.
 
     ! physics buffer fields for total energy and mass adjustment
     integer itim_old, ifld
@@ -1407,12 +1430,31 @@ contains
        call chem_timestep_tend(state, ptend, cam_in, cam_out, ztodt, &
             pbuf,  fh2o=fh2o)
 
+       !Apply H2O2/CH4 oxidation tendencies to water tracers/isotopes:
+       !NOTE:  Currently assuming that the isotope values are coming
+       !from methane oxidation.  However, the actual chemical reaction
+       !(given the default setup) produces water from HO2.  If HO2 is
+       !receiving its H's and O's from methane oxidation, then this
+       !set-up should be fine.  However, if HO2 is formed from a different
+       !set of constituents and chemical reactions, then this assumption may
+       !not be valid. -JN
+       if(trace_water) then
+         call wtrc_chem_ch4ox_tend(state,pbuf,ptend)
+       end if
+
        call physics_update(state, ptend, ztodt, tend)
        call check_energy_chng(state, tend, "chem", nstep, ztodt, fh2o, zero, zero, zero)
        call check_tracers_chng(state, tracerint, "chem_timestep_tend", nstep, ztodt, &
             cam_in%cflx)
     end if
     call t_stopf('adv_tracer_src_snk')
+
+    !-----------------------
+    !check water tracer mass
+    !-----------------------
+    if(trace_water) then
+       isOK = wtrc_check_h2o("after-tracer source/sink", state, state%q, ztodt)
+    end if
 
     !===================================================
     ! Vertical diffusion/pbl calculation
@@ -1433,6 +1475,13 @@ contains
     call physics_update(state, ptend, ztodt, tend)
 
     call t_stopf ('vertical_diffusion_tend')
+
+   !-----------------------
+   !check water tracer mass
+   !-----------------------
+   if(trace_water) then
+     isOk = wtrc_check_h2o("after-pbl", state, state%q, ztodt) !<-Will always lose mass until CLM is up and running.
+   end if
 
     !===================================================
     ! Rayleigh friction calculation
@@ -1690,6 +1739,15 @@ contains
     use subcol_utils,    only: subcol_ptend_copy, is_subcol_on
     use qneg_module,     only: qneg3
 
+    !water tracers
+    use water_tracer_vars, only: trace_water, wtrc_iatype, &
+                                 wtrc_nwset, iwspec, wisotope, &
+                                 wtrc_srfpcp_indices 
+    use water_tracers,   only: wtrc_check_h2o, wtrc_get_rstd, &
+                               wtrc_is_tagged, wtrc_mass_fixer
+    use water_types,     only: pwtype, iwtstrain, iwtstsnow
+
+    !
     ! Arguments
 
     real(r8), intent(in) :: ztodt                          ! 2 delta t (model time increment)
@@ -1729,7 +1787,7 @@ contains
     integer lchnk                              ! chunk identifier
     integer ncol                               ! number of atmospheric columns
 
-    integer :: i                               ! column indicex
+    integer  i,k,m,n                           ! Longitude, level, constituent indices
     integer :: ixcldice, ixcldliq              ! constituent indices for cloud liquid and ice water.
     ! for macro/micro co-substepping
     integer :: macmic_it                       ! iteration variables
@@ -1770,11 +1828,18 @@ contains
     real(r8),pointer :: prec_sed(:)     ! total precip from cloud sedimentation
     real(r8),pointer :: snow_sed(:)     ! snow from cloud ice sedimentation
 
+    !water tracers
+    real(r8), pointer :: wtprec(:)      ! water tracer/isotope precipitation
+
     ! Local copies for substepping
     real(r8) :: prec_pcw_macmic(pcols)
     real(r8) :: snow_pcw_macmic(pcols)
     real(r8) :: prec_sed_macmic(pcols)
     real(r8) :: snow_sed_macmic(pcols)
+
+    !water tracers
+    real(r8) :: wtprec_macmic(pcols,wtrc_nwset)
+    real(r8) :: wtsnow_macmic(pcols,wtrc_nwset)
 
     ! energy checking variables
     real(r8) :: zero(pcols)                    ! array of zeros
@@ -1790,6 +1855,11 @@ contains
     real(r8) :: zero_tracers(pcols,pcnst)
 
     logical   :: lq(pcnst)
+    ! For water tracers:
+    logical  :: isOK
+    integer  :: p    !for H2O mass fixing
+!    real(r8) :: R    !for H2O mass fixing
+
     !-----------------------------------------------------------------------
 
     call t_startf('bc_init')
@@ -1802,6 +1872,56 @@ contains
     ncol  = state%ncol
 
     nstep = get_nstep()
+
+    !***********************************
+    !Correct water tracer/isotope masses
+    !***********************************
+    if(trace_water) then
+      call wtrc_mass_fixer(state)
+    end if
+   !*************************************************
+   !Remove all water tracer values that are too large
+   !*************************************************
+   !NOTE:  In theory,  water tracers and tags can never
+   !be larger than the bulk water. Any tracer quantity
+   !that is larger than the bulk water is assumed to be
+   !too large due to numerical errors, and thus it is ok
+   !to go ahead and destroy that extra mass.  Water isotopes
+   !can be larger than bulk water, at least in the condensed
+   !phase, but only to a certain point (say, ~50 permil for
+   !HDO).  Thus a cutoff of 1.1*bulk, instead of just bulk,
+   !is used.  Still, this routine DESTROYS MASS, which is
+   !generally not a good thing when modeling a physical system,
+   !and it could potentially cover up actual physical errors
+   !in the water tracer routines. Still, for now its better
+   !to have the model stable via this fixer than for it to
+   !be more "accurate" but blow up at high resolutions.
+   !**************************************************
+   if(trace_water) then
+      if (wisotope) then
+         do m=2,wtrc_nwset
+            where (state%q(1:ncol,:,wtrc_iatype(m,:)) .gt. 1.5_r8*state%q(1:ncol,:,wtrc_iatype(1,:))) &
+                  state%q(1:ncol,:,wtrc_iatype(m,:)) = state%q(1:ncol,:,wtrc_iatype(1,:))
+         end do
+      else
+         do m=2,wtrc_nwset
+            where (state%q(1:ncol,:,wtrc_iatype(m,:)) .gt. state%q(1:ncol,:,wtrc_iatype(1,:))) &
+                         state%q(1:ncol,:,wtrc_iatype(m,:)) = state%q(1:ncol,:,wtrc_iatype(1,:))
+            do p=1,pwtype 
+               if (.not.(wtrc_is_tagged(wtrc_iatype(m,p)))) &
+                      state%q(1:ncol,:,wtrc_iatype(m,p)) = wtrc_get_rstd(iwspec(wtrc_iatype(m,p)))*&
+                                                              state%q(1:ncol,:,wtrc_iatype(1,p))
+            end do
+         end do
+      end if
+      do p=1,pwtype
+        do m=2,wtrc_nwset
+           n = wtrc_iatype(m,p)
+           call qneg3('wiso',lchnk  ,ncol    ,pcols   ,pver, n, n, qmin(n), state%q(1,1,n) )
+        end do
+      end do
+   end if
+  !*******************************
 
     ! Associate pointers with physics buffer fields
     itim_old = pbuf_old_tim_idx()
@@ -1902,6 +2022,15 @@ contains
     !===================================================
     call t_startf('moist_convection')
 
+    !-----------------------
+    !Check water tracer mass
+    !-----------------------
+
+    if (trace_water) then
+      ! will always indicates mass loss until Land is up and running
+      isOK = wtrc_check_h2o("before-convection", state, state%q, ztodt) 
+    end if
+
     call t_startf ('convect_deep_tend')
 
     call convect_deep_tend(  &
@@ -1914,6 +2043,13 @@ contains
     call physics_update(state, ptend, ztodt, tend)
 
     call t_stopf('convect_deep_tend')
+
+    !-----------------------
+    !Check water tracer mass
+    !-----------------------
+    if (trace_water) then
+      isOK = wtrc_check_h2o("after-deep tphysbc", state, state%q, ztodt)
+    end if
 
     call pbuf_get_field(pbuf, prec_dp_idx, prec_dp )
     call pbuf_get_field(pbuf, snow_dp_idx, snow_dp )
@@ -1955,6 +2091,21 @@ contains
     call t_stopf ('convect_shallow_tend')
 
     call physics_update(state, ptend, ztodt, tend)
+
+    !***********************************
+    !Correct water tracer/isotope masses
+    !***********************************
+    if(trace_water) then
+      call wtrc_mass_fixer(state)
+    end if
+    !***********************************
+
+    !-----------------------
+    !Check water tracer mass
+    !-----------------------
+    if (trace_water) then
+      isOK = wtrc_check_h2o("after-shallow tphysbc", state, state%q, ztodt)
+    end if
 
     flx_cnd(:ncol) = prec_sh(:ncol) + rliq2(:ncol)
     call check_energy_chng(state, tend, "convect_shallow", nstep, ztodt, zero, flx_cnd, snow_sh, zero)
@@ -2027,6 +2178,10 @@ contains
        prec_pcw_macmic = 0._r8
        snow_pcw_macmic = 0._r8
 
+       !water tracers
+       wtprec_macmic(:,:) = 0._r8
+       wtsnow_macmic(:,:) = 0._r8
+
        do macmic_it = 1, cld_macmic_num_steps
 
           !===================================================
@@ -2062,6 +2217,11 @@ contains
                   zero, flx_cnd(:ncol)/cld_macmic_num_steps, &
                   det_ice(:ncol)/cld_macmic_num_steps, &
                   flx_heat(:ncol)/cld_macmic_num_steps)
+ 
+             !Kludge to fix mysterious H216O vapor error coming from the macrophysics -JN:
+             if(trace_water) then
+               call wtrc_mass_fixer(state)
+             end if
 
           else ! Calculate CLUBB macrophysics
 
@@ -2095,6 +2255,16 @@ contains
                 flx_cnd(:ncol)/cld_macmic_num_steps, &
                 det_ice(:ncol)/cld_macmic_num_steps, &
                 flx_heat(:ncol)/cld_macmic_num_steps)
+
+             !-----------------------
+             !Check water tracer mass 
+             !-----------------------
+             !NOTE:  A small vapor mass error seems to be originiating from
+             !       CLUBB.  However, it is quite small (relative error = 10^-10), so for
+             !       now just ignore. -JN
+             !if (trace_water) then
+             !  isOK = wtrc_check_h2o("after-clubb tphysbc", state, state%q, ztodt)
+             !end if
 
           endif
 
@@ -2168,6 +2338,21 @@ contains
           prec_pcw_macmic(:ncol) = prec_pcw_macmic(:ncol) + prec_pcw(:ncol)
           snow_pcw_macmic(:ncol) = snow_pcw_macmic(:ncol) + snow_pcw(:ncol)
 
+          !water tracers:
+          if(trace_water) then
+            do m=1,wtrc_nwset
+             !Stratiform rain:
+              call pbuf_get_field(pbuf, wtrc_srfpcp_indices(iwtstrain,m), wtprec)
+              wtprec_macmic(:ncol,m) = wtprec_macmic(:ncol,m) + wtprec(:ncol)
+             !Stratiform snow:
+              call pbuf_get_field(pbuf, wtrc_srfpcp_indices(iwtstsnow,m), wtprec)
+              wtsnow_macmic(:ncol,m) = wtsnow_macmic(:ncol,m) + wtprec(:ncol)
+            end do
+
+            !Kludge to fix potential H2O vapor error before re-doing CLUBB -JN:
+            call wtrc_mass_fixer(state)
+          end if
+
        end do ! end substepping over macrophysics/microphysics
 
        prec_sed(:ncol) = prec_sed_macmic(:ncol)/cld_macmic_num_steps
@@ -2176,6 +2361,18 @@ contains
        snow_pcw(:ncol) = snow_pcw_macmic(:ncol)/cld_macmic_num_steps
        prec_str(:ncol) = prec_pcw(:ncol) + prec_sed(:ncol)
        snow_str(:ncol) = snow_pcw(:ncol) + snow_sed(:ncol)
+
+       !water traces
+       if(trace_water) then
+         do m=1,wtrc_nwset
+           !Stratiform rain:
+           call pbuf_get_field(pbuf, wtrc_srfpcp_indices(iwtstrain,m), wtprec)
+           wtprec(:ncol) = wtprec_macmic(:ncol,m)/cld_macmic_num_steps
+           !Stratiform snow:
+           call pbuf_get_field(pbuf, wtrc_srfpcp_indices(iwtstsnow,m), wtprec)
+           wtprec(:ncol) = wtsnow_macmic(:ncol,m)/cld_macmic_num_steps
+         end do
+       end if
 
     endif
 

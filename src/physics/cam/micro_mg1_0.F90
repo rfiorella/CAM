@@ -400,7 +400,8 @@ subroutine micro_mg_tend ( &
      nsout2, drout2, dsout2, freqs, freqr,            &
      nfice, prer_evap, do_cldice, errstring,          &
      tnd_qsnow, tnd_nsnow, re_ice,                    &
-     frzimm, frzcnt, frzdep)
+     frzimm, frzcnt, frzdep, preo, prdso,             &
+     frzro, meltso, wtfc, wtfi, wtprelat, wtpostlat )
 
 ! input arguments
 logical,  intent(in) :: microp_uniform  ! True = configure uniform for sub-columns  False = use w/o sub-columns (standard)
@@ -534,6 +535,16 @@ real(r8), intent(in) :: re_ice(:,:)    ! ice effective radius (m)
 real(r8), intent(in) :: frzimm(:,:) ! Number tendency due to immersion freezing (1/cm3)
 real(r8), intent(in) :: frzcnt(:,:) ! Number tendency due to contact freezing (1/cm3)
 real(r8), intent(in) :: frzdep(:,:) ! Number tendency due to deposition nucleation (1/cm3)
+
+!Water tracer/isotopes
+real(r8), intent(out) :: preo(pcols,pver)      ! mass tendency from rain evaporation
+real(r8), intent(out) :: prdso(pcols,pver)     ! mass tendency from snow sublimation
+real(r8), intent(out) :: frzro(pcols,pver)     ! mass tendency from freezing of rain
+real(r8), intent(out) :: meltso(pcols,pver)    ! mass tendency from melting of snow 
+real(r8), intent(out) :: wtfc(pcols,pver)      ! initial fall velocity of cloud liquid (?)
+real(r8), intent(out) :: wtfi(pcols,pver)      ! initial fall velocity of cloud ice (?)
+real(r8), intent(out) :: wtprelat(pcols,pver)  ! change in temperature due to pre-sed processes
+real(r8), intent(out) :: wtpostlat(pcols,pver) ! change in temperature due to post-sed processes
 
 ! local workspace
 ! all units mks unless otherwise stated
@@ -835,7 +846,9 @@ real(r8) :: esn
 real(r8) :: qsn
 real(r8) :: ttmp
 
-
+!water tracers:
+real(r8) :: qrtend_copy(pcols,pver) !copy of qrtend.
+real(r8) :: qnitend_copy(pcols,pver)!copy of qnitend.
 
 real(r8) :: rainrt(pcols,pver)  ! rain rate for reflectivity calculation
 real(r8) :: rainrt1(pcols,pver)
@@ -910,6 +923,16 @@ sflx(:,:)=0._r8
 effc(:,:)=0._r8
 effc_fn(:,:)=0._r8
 effi(:,:)=0._r8
+
+!water tracers/isotopes:
+preo(1:ncol,1:pver)=0._r8
+prdso(1:ncol,1:pver)=0._r8
+frzro (1:ncol,1:pver)=0._r8
+meltso(1:ncol,1:pver)=0._r8
+wtfc(1:ncol,1:pver)=0._r8
+wtfi(1:ncol,1:pver)=0._r8
+wtprelat(1:ncol,1:pver)=0._r8
+wtpostlat(1:ncol,1:pver)=0._r8
 
 ! assign variable deltat for sub-stepping...
 deltat=deltatin
@@ -1389,6 +1412,11 @@ do i=1,ncol
       nsic(i,1:pver)=0._r8
       nric(i,1:pver)=0._r8
       rainrt(i,1:pver)=0._r8
+      !water tracers:
+      !-------------
+      qrtend_copy(i,1:pver)=0._r8
+      qnitend_copy(i,1:pver)=0._r8
+      !-------------
       goto 300
    end if
 
@@ -1412,6 +1440,10 @@ do i=1,ncol
       nitend(i,1:pver)=0._r8
       nrtend(i,1:pver)=0._r8
       nstend(i,1:pver)=0._r8
+
+      !water tracers:
+      qrtend_copy(i,1:pver)=0._r8
+      qnitend_copy(i,1:pver)=0._r8
 
       ! initialize diagnostic precipitation to zero
 
@@ -2521,6 +2553,10 @@ do i=1,ncol
               (prai(k)+prci(k))*icldm(i,k)+(psacws(k)+bergs(k))*lcldm(i,k)+(prds(k)+ &
               pracs(k)+mnuccr(k))*cldmax(i,k)
 
+         !water tracers/isotopes:
+         qrtend_copy(i,k) = qrtend_copy(i,k) + qrtend(i,k)
+         qnitend_copy(i,k) = qnitend_copy(i,k) + qnitend(i,k)
+
          ! add output for cmei (accumulate)
          cmeiout(i,k) = cmeiout(i,k) + cmei(i,k)
 
@@ -2563,6 +2599,9 @@ do i=1,ncol
          praio(i,k)=praio(i,k)+prai(k)*icldm(i,k)
          mnuccro(i,k)=mnuccro(i,k)+mnuccr(k)*cldmax(i,k)
          pracso (i,k)=pracso (i,k)+pracs (k)*cldmax(i,k)
+         !water tracers:
+         preo(i,k)=preo(i,k)+pre(k)*cldmax(i,k)
+         prdso(i,k)=prdso(i,k)+prds(k)*cldmax(i,k)
 
          ! multiply activation/nucleation by mtime to account for fast timescale
 
@@ -2677,6 +2716,16 @@ do i=1,ncol
                nric(i,k)=nric(i,k)+dum*nsic(i,k)
                qniic(i,k)=(1._r8-dum)*qniic(i,k)
                nsic(i,k)=(1._r8-dum)*nsic(i,k)
+
+               !water tracers/isotopes:
+               !original (Chuck Bardeen) version (ensures column integral matches final distribution) - JN
+            !   meltso(i,:)  = meltso(i,:) + dum*qnitend_copy(i,:)  
+            !   qnitend_copy(i,:) = qnitend_copy(i,:) - dum*qnitend_copy(i,:)
+            !   qrtend_copy(i,:)  = qrtend_copy(i,:)  + dum*qnitend_copy(i,:) 
+
+               !save total melted amount at this vertical level:
+               meltso(i,k) = meltso(i,k) + dum*qstot*g  
+ 
                ! heating tendency 
                tmp=-xlf*dum*qstot/(dz(i,k)*rho(i,k))
                meltsdt(i,k)=meltsdt(i,k) + tmp
@@ -2711,6 +2760,16 @@ do i=1,ncol
                nsic(i,k)=nsic(i,k)+dum*nric(i,k)
                qric(i,k)=(1._r8-dum)*qric(i,k)
                nric(i,k)=(1._r8-dum)*nric(i,k)
+
+               !water tracers/isotopes:
+               !original (Chuck Bardeen) version (ensures column integral matches final distribution) - JN
+             !  frzro(i,:)   = frzro(i,:) + dum*qrtend_copy(i,:)
+             !  qnitend_copy(i,:) = qnitend_copy(i,:) + dum*qrtend_copy(i,:)
+             !  qrtend_copy(i,:)  = qrtend_copy(i,:) - dum*qrtend_copy(i,:)
+
+               !save total frozen amount at this vertical level:
+               frzro(i,k) = frzro(i,k) + dum*qrtot*g 
+
                ! heating tendency 
                tmp = xlf*dum*qrtot/(dz(i,k)*rho(i,k))
                frzrdt(i,k)=frzrdt(i,k) + tmp
@@ -2993,6 +3052,13 @@ do i=1,ncol
 
       mnuccdo(i,k)=mnuccdo(i,k)/real(iter)
 
+      !water tracers/isotopes:
+      preo(i,k)=preo(i,k)/real(iter)
+      prdso(i,k)=prdso(i,k)/real(iter)
+      frzro(i,k)=frzro(i,k)/real(iter)
+      meltso(i,k)=meltso(i,k)/real(iter)
+      wtprelat(i,k) = tlat(i,k)
+
       ! modify to include snow. in prain & evap (diagnostic here: for wet dep)
       nevapr(i,k) = nevapr(i,k) + evapsnow(i,k)
       prer_evap(i,k) = nevapr2(i,k)
@@ -3085,6 +3151,10 @@ do i=1,ncol
       fni(k) = g*rho(i,k)*uni
       fc(k) = g*rho(i,k)*umc
       fnc(k) = g*rho(i,k)*unc
+
+      !water tracers:
+      wtfc(i,k) = fc(k)
+      wtfi(i,k) = fi(k)
 
       ! calculate number of split time steps to ensure courant stability criteria
       ! for sedimentation calculations
@@ -3267,6 +3337,8 @@ do i=1,ncol
                qitend(i,k)=((1._r8-dum)*dumi(i,k)-qi(i,k))/deltat
                nitend(i,k)=((1._r8-dum)*dumni(i,k)-ni(i,k))/deltat
                tlat(i,k)=tlat(i,k)-xlf*dum*dumi(i,k)/deltat
+               !water tracers:
+               wtpostlat(i,k) = wtpostlat(i,k) - (xlf*dum*dumi(i,k)/deltat)
             end if
          end if
 
@@ -3297,6 +3369,8 @@ do i=1,ncol
                qctend(i,k)=((1._r8-dum)*dumc(i,k)-qc(i,k))/deltat
                nctend(i,k)=((1._r8-dum)*dumnc(i,k)-nc(i,k))/deltat
                tlat(i,k)=tlat(i,k)+xlf*dum*dumc(i,k)/deltat
+               !water tracers:
+               wtpostlat(i,k) = wtpostlat(i,k)+(xlf*dum*dumc(i,k)/deltat)
             end if
          end if
 
@@ -3336,6 +3410,8 @@ do i=1,ncol
             ! for output
             qvres(i,k)=-dum
             tlat(i,k)=tlat(i,k)+dum*(1._r8-dum1)*xxlv+dum*dum1*xxls
+            !water tracers:
+            wtpostlat(i,k) = wtpostlat(i,k)+(dum*(1._r8-dum1)*xxlv+dum*dum1*xxls)
          end if
       end if
 

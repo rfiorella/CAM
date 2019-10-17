@@ -209,6 +209,8 @@ contains
     use physconst,    only: physconst_update ! Routine which updates physconst variables (WACCM-X)
     use ppgrid,       only: begchunk, endchunk
     use qneg_module,  only: qneg3
+    use water_tracer_vars, only: trace_water, wtrc_nwset, wtrc_iatype
+    use water_types,  only: iwtliq, iwtice
 
 !------------------------------Arguments--------------------------------
     type(physics_ptend), intent(inout)  :: ptend   ! Parameterization tendencies
@@ -369,6 +371,39 @@ contains
        end if
     end if
 
+   !**************************************************************
+   !special tests for water tracers (to match cloud water and ice)
+   !**************************************************************
+   if(trace_water) then !are water tracers on?
+
+     !NOTE:  This code might not work for water isotopes, as the values
+     !will be significantly smaller.  If a problem occurs when doing
+     !ratio or similar tests, this could likely be the culprit. - JN
+
+     !NOTE:  Make sure to zero out the water tracer only where the actual
+     !bulk water satisfies the logical condition, not where the water tracer 
+     !itself passes. -JN 
+
+     do m=1,wtrc_nwset !loop over water tracers
+       !-------------
+       !Cloud liquid:
+       !-------------
+       if(ptend%lq(wtrc_iatype(m,iwtliq))) then
+         if ( any(ptend%name == cldlim_names) ) &
+           call state_cnst_min_nz(1.e-36_r8, ixcldliq, wtrc_iatype(m,iwtliq))
+       end if
+       !---------
+       !Cloud Ice:
+       !---------
+       if(ptend%lq(wtrc_iatype(m,iwtice))) then
+         if ( any(ptend%name == cldlim_names) ) &
+           call state_cnst_min_nz(1.e-36_r8, ixcldice, wtrc_iatype(m,iwtice))
+       end if
+       !---------
+     end do !water tracers
+   end if
+   !**************************************************************
+  
     !------------------------------------------------------------------------
     ! Get indices for molecular weights and call WACCM-X physconst_update
     !------------------------------------------------------------------------

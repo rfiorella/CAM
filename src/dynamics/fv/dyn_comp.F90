@@ -2993,7 +2993,7 @@ subroutine process_inidat(fh_ini, grid, dyn_in, fieldname, m_cnst)
 
    ! Post-process input fields
    use commap,              only: clat, clon
-   use const_init,          only: cnst_init_default
+   use const_init,          only: cnst_init_default, cnst_store_value
    use inic_analytic,       only: analytic_ic_active
 
    ! arguments
@@ -3145,6 +3145,8 @@ subroutine process_inidat(fh_ini, grid, dyn_in, fieldname, m_cnst)
 
          call cnst_init_default(m_cnst, clat(jfirstxy:jlastxy), clon(ifirstxy:ilastxy,1), tracer(:,:,:,m_cnst))
       end if
+
+      call cnst_store_value(trim(cnst_name(m_cnst)), tracer(:,:,:,m_cnst), 2)
 
       if (.not. analytic_ic_active()) then
          do k = 1, km

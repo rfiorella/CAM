@@ -12,6 +12,7 @@ private
 save
 
 public :: cnst_init_default
+public :: cnst_store_value
 
 interface cnst_init_default
   module procedure cnst_init_default_col
@@ -22,7 +23,7 @@ end interface cnst_init_default
 CONTAINS
 !==============================================================================
 
-  subroutine cnst_init_default_col(m_cnst, latvals, lonvals, q, mask,         &
+  subroutine cnst_init_default_col(m_cnst, num_blck, latvals, lonvals, q, mask,         &
        verbose, notfound)
     use constituents,  only: cnst_name
     use aoa_tracers,   only: aoa_tracers_implements_cnst,   aoa_tracers_init_cnst
@@ -34,6 +35,8 @@ CONTAINS
     use rk_stratiform, only: rk_stratiform_implements_cnst, rk_stratiform_init_cnst
     use tracers,       only: tracers_implements_cnst,       tracers_init_cnst
     use unicon_cam,    only: unicon_implements_cnst,        unicon_init_cnst
+    use water_tracers, only: wtrc_implements_cnst,          wtrc_init_cnst
+
 
     !-----------------------------------------------------------------------
     !
@@ -44,6 +47,7 @@ CONTAINS
 
     ! Dummy arguments
     integer,           intent(in)  :: m_cnst     ! Constant index
+    integer,           intent(in)  :: num_blck   ! block number
     real(r8),          intent(in)  :: latvals(:) ! lat in degrees (ncol)
     real(r8),          intent(in)  :: lonvals(:) ! lon in degrees (ncol)
     real(r8),          intent(out) :: q(:,:)     ! mixing ratio (ncol, plev)
@@ -132,6 +136,11 @@ CONTAINS
       if(masterproc .and. verbose_use) then
         write(iulog,*) '          ', trim(name), ' initialized by "unicon_init_cnst"'
       end if
+    else if (wtrc_implements_cnst(cnst_name(m_cnst))) then
+      call wtrc_init_cnst(trim(name), num_blck, latvals, lonvals, mask_use, q)
+      if(masterproc .and. verbose_use) then
+        write(iulog,*) '          ', trim(name), ' initialized by "wtrc_init_cnst"'
+      end if
     else
       if(masterproc .and. verbose_use) then
         write(iulog,*) '          ', trim(name), ' set to minimum value'
@@ -143,6 +152,7 @@ CONTAINS
 
   subroutine cnst_init_default_cblock(m_cnst, latvals, lonvals, q, mask)
 
+    use constituents,          only: cnst_name
     !-----------------------------------------------------------------------
     !
     ! Purpose: initialize named tracer mixing ratio field
@@ -180,9 +190,9 @@ CONTAINS
           if (size(mask) /= size(latvals)) then
             call endrun('cnst_init_default_cblock: incorrect mask size')
           end if
-          call cnst_init_default(m_cnst, latvals(bbeg:bend), lonvals(bbeg:bend), q(:,:,i), mask=mask(bbeg:bend), verbose=verbose)
+          call cnst_init_default(m_cnst, i, latvals(bbeg:bend), lonvals(bbeg:bend), q(:,:,i), mask=mask(bbeg:bend), verbose=verbose)
         else
-          call cnst_init_default(m_cnst, latvals(bbeg:bend), lonvals(bbeg:bend), q(:,:,i), verbose=verbose)
+          call cnst_init_default(m_cnst, i, latvals(bbeg:bend), lonvals(bbeg:bend), q(:,:,i), verbose=verbose)
         end if
         verbose = .false.
       end do
@@ -195,7 +205,7 @@ CONTAINS
         allocate(latblk(size1))
         do i = 1, nblks
           latblk(:) = latvals(i)
-          call cnst_init_default(m_cnst, latblk, lonvals, q(:,i,:), verbose=verbose)
+          call cnst_init_default(m_cnst, i, latblk, lonvals, q(:,i,:), verbose=verbose)
           verbose = .false.
         end do
         deallocate(latblk)
@@ -209,7 +219,7 @@ CONTAINS
         allocate(latblk(size1))
         do i = 1, nblks
           latblk(:) = latvals(i)
-          call cnst_init_default(m_cnst, latblk, lonvals, q(:,:,i), verbose=verbose)
+          call cnst_init_default(m_cnst, i, latblk, lonvals, q(:,:,i), verbose=verbose)
           verbose = .false.
         end do
         deallocate(latblk)
@@ -219,5 +229,38 @@ CONTAINS
     end if
 
   end subroutine cnst_init_default_cblock
+
+  subroutine cnst_store_value(name, q_in, blck_indx)
+    use constituents,          only: cnst_name
+    use water_tracers,         only: wtrc_store_cnst
+
+    ! Possibly store a constituent needed initialize isotope constituents
+
+    ! Dummy arguments
+    character(len=*),    intent(in) :: name     ! constituent name
+    real(r8),            intent(in) :: q_in(:,:,:) ! (ncol, nlev, nblk)
+    integer,             intent(in) :: blck_indx! index for num_blocks
+
+    real(r8), allocatable  :: q(:,:,:)
+    integer :: i, j
+
+    ! Offer isotope code the opportunity to store the tracer just initialized
+
+    ! Always want q to be ordered ncol,nlev,nblk, so rearrange if in blocks in second dimension
+    if (blck_indx == 2) then
+      allocate(q(size(q_in,1), size(q_in,3), size(q_in,2)))
+      do i = 1, size(q_in,3)
+         do j = 1, size(q_in,2)
+            q(:,i,j) = q_in(:,j,i)
+         end do
+      end do
+      call wtrc_store_cnst(trim(name), q)
+    else if (blck_indx == 3) then
+      call wtrc_store_cnst(trim(name), q_in)
+    else
+      call endrun(' cnst_store_value: illegal blck_indx')
+    end if
+
+  end subroutine cnst_store_value
 
 end module const_init

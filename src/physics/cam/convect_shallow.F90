@@ -367,8 +367,10 @@
    use time_manager,    only : get_nstep
    use wv_saturation,   only : qsat
    use physconst,       only : latice, latvap, rhoh2o
-
    use spmd_utils, only : iam
+
+   use water_tracer_vars, only: trace_water
+   use water_tracers,     only: wtrc_shallow
    implicit none
 
    ! ---------------------- !
@@ -445,6 +447,15 @@
    real(r8) :: ptend_tracer(pcols,pver,pcnst)                            ! Tendencies of tracers
    real(r8) :: sum1, sum2, sum3, pdelx 
    real(r8) :: landfracdum(pcols)
+
+   !water tracer variables:
+   !**********************
+   real(r8) :: wtprect(pcols,pcnst)          !Water tracer surface precipitation
+   real(r8) :: wtsnowt(pcols,pcnst)          !Water tracer surface snow
+   real(r8) :: evpstore(pcols,pver)          !Precipitation Evaporation
+   real(r8) :: substore(pcols,pver)          !Snow Sublimation
+   real(r8) :: wtqc(pcols,pver,pcnst)        !tendency of detrained cloud condensate
+   !**********************
 
    real(r8), dimension(pcols,pver) :: sl, qt, slv
    real(r8), dimension(pcols,pver) :: sl_preCu, qt_preCu, slv_preCu
@@ -553,6 +564,11 @@
       evapcsh     = 0._r8
       snow        = 0._r8
 
+     !water tracers:
+      wtqc(:,:,:) = 0._r8
+      wtprect(:,:)= 0._r8 
+      wtsnowt(:,:)= 0._r8
+
    case('Hack') ! Hack scheme
                                    
       lq(:) = .TRUE.
@@ -600,7 +616,7 @@
                                evapcsh             , shfrc          , iccmr_UW      , icwmr_UW      ,                   &
                                icimr_UW            , cbmf           , qc2           , rliq2         ,                   &
                                cnt2                , cnb2           , lchnk         , state%pdeldry ,                   &
-                               sh_e_ed_ratio                                                                            )
+                               sh_e_ed_ratio       , wtprect        , wtsnowt       , wtqc                              )
 
       ! --------------------------------------------------------------------- !
       ! Here, 'rprdsh = qrten', 'cmfdqs = qsten' both in unit of [ kg/kg/s ]  !
@@ -801,6 +817,11 @@
    call physics_update( state1, ptend_loc, ztodt )
 
    ! ----------------------------------------------------------------------------- !
+   ! Update water tracers, if applicable
+   ! ----------------------------------------------------------------------------- !
+   if (trace_water) call wtrc_shallow(state1, ztodt, wtprect, wtsnowt, wtqc, pbuf)
+
+   ! ----------------------------------------------------------------------------- !
    ! For diagnostic purpose, print out 'QT,SL,SLV,t,RH' just after cumulus scheme  !
    ! ----------------------------------------------------------------------------- !
 
@@ -869,8 +890,8 @@
 		       landfracdum, &
                        ptend_loc%s, tend_s_snwprd, tend_s_snwevmlt,                  & 
                        ptend_loc%q(:pcols,:pver,1),                                  &
-                       rprdsh, cld, ztodt,                                           &
-                       precc, snow, ntprprd, ntsnprd , flxprec, flxsnow )
+                       rprdsh, cld, ztodt, precc, snow,                         &
+                       evpstore, substore, ntprprd, ntsnprd, flxprec, flxsnow )
 
    ! ------------------------------------------ !
    ! record history variables from zm_conv_evap !

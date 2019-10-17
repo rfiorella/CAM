@@ -24,6 +24,9 @@ module cam_cpl_indices
   integer :: index_a2x_Sa_tbot         ! bottom atm level temp
   integer :: index_a2x_Sa_ptem         ! bottom atm level pot temp
   integer :: index_a2x_Sa_shum         ! bottom atm level spec hum
+  integer :: index_a2x_Sa_shum_16O     ! bottom atm level H2O tracer
+  integer :: index_a2x_Sa_shum_HDO     ! bottom atm level HDO tracer
+  integer :: index_a2x_Sa_shum_18O     ! bottom atm level H218O tracer
   integer :: index_a2x_Sa_dens         ! bottom atm level air den
   integer :: index_a2x_Sa_pbot         ! bottom atm level pressure
   integer :: index_a2x_Sa_pslv         ! sea level atm pressure
@@ -32,6 +35,18 @@ module cam_cpl_indices
   integer :: index_a2x_Faxa_rainl      ! prec: liquid "large scale"
   integer :: index_a2x_Faxa_snowc      ! prec: frozen "convective"
   integer :: index_a2x_Faxa_snowl      ! prec: frozen "large scale"
+  integer :: index_a2x_Faxa_rainc_16O  ! prec: liquid "convective" H2O
+  integer :: index_a2x_Faxa_rainl_16O  ! prec: liquid "large scale" H2O
+  integer :: index_a2x_Faxa_snowc_16O  ! prec: frozen "convective" H2O
+  integer :: index_a2x_Faxa_snowl_16O  ! prec: frozen "large scale" H2O
+  integer :: index_a2x_Faxa_rainc_HDO  ! prec: liquid "convective" HDO
+  integer :: index_a2x_Faxa_rainl_HDO  ! prec: liquid "large scale" HDO
+  integer :: index_a2x_Faxa_snowc_HDO  ! prec: frozen "convective" HDO
+  integer :: index_a2x_Faxa_snowl_HDO  ! prec: frozen "large scale" H2O
+  integer :: index_a2x_Faxa_rainc_18O  ! prec: liquid "convective" H218O
+  integer :: index_a2x_Faxa_rainl_18O  ! prec: liquid "large scale" H218O
+  integer :: index_a2x_Faxa_snowc_18O  ! prec: frozen "convective" H218O
+  integer :: index_a2x_Faxa_snowl_18O  ! prec: frozen "large scale" H218O
   integer :: index_a2x_Faxa_swndr      ! sw: nir direct  downward
   integer :: index_a2x_Faxa_swvdr      ! sw: vis direct  downward
   integer :: index_a2x_Faxa_swndf      ! sw: nir diffuse downward
@@ -78,6 +93,9 @@ module cam_cpl_indices
   integer :: index_x2a_Faxx_sen        ! sensible        heat flux       
   integer :: index_x2a_Faxx_lwup       ! upward longwave heat flux       
   integer :: index_x2a_Faxx_evap       ! evaporation    water flux       
+  integer :: index_x2a_Faxx_evap_16O   ! evaporation    H216O flux
+  integer :: index_x2a_Faxx_evap_HDO   ! evaporation    HD16O flux
+  integer :: index_x2a_Faxx_evap_18O   ! evaporation    H218O flux
   integer :: index_x2a_Fall_flxdst1    ! dust flux size bin 1    
   integer :: index_x2a_Fall_flxdst2    ! dust flux size bin 2    
   integer :: index_x2a_Fall_flxdst3    ! dust flux size bin 3    
@@ -135,6 +153,9 @@ contains
     index_x2a_Faxx_sen      = mct_avect_indexra(x2a,'Faxx_sen')
     index_x2a_Faxx_lwup     = mct_avect_indexra(x2a,'Faxx_lwup')
     index_x2a_Faxx_evap     = mct_avect_indexra(x2a,'Faxx_evap')
+    index_x2a_Faxx_evap_16O = mct_avect_indexra(x2a,'Faxx_evap_16O', perrWith='quiet')
+    index_x2a_Faxx_evap_HDO = mct_avect_indexra(x2a,'Faxx_evap_HDO', perrWith='quiet')
+    index_x2a_Faxx_evap_18O = mct_avect_indexra(x2a,'Faxx_evap_18O', perrWith='quiet')
     index_x2a_So_ustar      = mct_avect_indexra(x2a,'So_ustar')
     index_x2a_So_re         = mct_avect_indexra(x2a,'So_re')
     index_x2a_So_ssq        = mct_avect_indexra(x2a,'So_ssq')
@@ -177,6 +198,9 @@ contains
     index_a2x_Sa_pbot       = mct_avect_indexra(a2x,'Sa_pbot')
     index_a2x_Sa_pslv       = mct_avect_indexra(a2x,'Sa_pslv')
     index_a2x_Sa_shum       = mct_avect_indexra(a2x,'Sa_shum')
+    index_a2x_Sa_shum_16O   = mct_avect_indexra(a2x,'Sa_shum_16O', perrWith='quiet')
+    index_a2x_Sa_shum_HDO   = mct_avect_indexra(a2x,'Sa_shum_HDO', perrWith='quiet')
+    index_a2x_Sa_shum_18O   = mct_avect_indexra(a2x,'Sa_shum_18O', perrWith='quiet')
     index_a2x_Sa_dens       = mct_avect_indexra(a2x,'Sa_dens')
     index_a2x_Faxa_swnet    = mct_avect_indexra(a2x,'Faxa_swnet')
     index_a2x_Faxa_lwdn     = mct_avect_indexra(a2x,'Faxa_lwdn')
@@ -184,6 +208,18 @@ contains
     index_a2x_Faxa_rainl    = mct_avect_indexra(a2x,'Faxa_rainl')
     index_a2x_Faxa_snowc    = mct_avect_indexra(a2x,'Faxa_snowc')
     index_a2x_Faxa_snowl    = mct_avect_indexra(a2x,'Faxa_snowl')
+    index_a2x_Faxa_rainc_16O= mct_avect_indexra(a2x,'Faxa_rainc_16O', perrWith='quiet')
+    index_a2x_Faxa_rainl_16O= mct_avect_indexra(a2x,'Faxa_rainl_16O', perrWith='quiet')
+    index_a2x_Faxa_snowc_16O= mct_avect_indexra(a2x,'Faxa_snowc_16O', perrWith='quiet')
+    index_a2x_Faxa_snowl_16O= mct_avect_indexra(a2x,'Faxa_snowl_16O', perrWith='quiet')
+    index_a2x_Faxa_rainc_HDO= mct_avect_indexra(a2x,'Faxa_rainc_HDO', perrWith='quiet')
+    index_a2x_Faxa_rainl_HDO= mct_avect_indexra(a2x,'Faxa_rainl_HDO', perrWith='quiet')
+    index_a2x_Faxa_snowc_HDO= mct_avect_indexra(a2x,'Faxa_snowc_HDO', perrWith='quiet')
+    index_a2x_Faxa_snowl_HDO= mct_avect_indexra(a2x,'Faxa_snowl_HDO', perrWith='quiet')
+    index_a2x_Faxa_rainc_18O= mct_avect_indexra(a2x,'Faxa_rainc_18O', perrWith='quiet')
+    index_a2x_Faxa_rainl_18O= mct_avect_indexra(a2x,'Faxa_rainl_18O', perrWith='quiet')
+    index_a2x_Faxa_snowc_18O= mct_avect_indexra(a2x,'Faxa_snowc_18O', perrWith='quiet')
+    index_a2x_Faxa_snowl_18O= mct_avect_indexra(a2x,'Faxa_snowl_18O', perrWith='quiet')
     index_a2x_Faxa_swndr    = mct_avect_indexra(a2x,'Faxa_swndr')
     index_a2x_Faxa_swvdr    = mct_avect_indexra(a2x,'Faxa_swvdr')
     index_a2x_Faxa_swndf    = mct_avect_indexra(a2x,'Faxa_swndf')

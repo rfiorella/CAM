@@ -23,6 +23,11 @@ use time_manager,    only: is_first_step
 use scamMod,         only: single_column, wfld
 use cam_abortutils,  only: endrun
 
+use water_tracer_vars, only: trace_water, wtrc_nwset, wtrc_iatype, wtrc_srfvap_names, wtrc_srfpcp_indices, &
+                             wtrc_out_names
+use water_types,       only: iwtvap, iwtcvrain, iwtcvsnow, iwtstrain, iwtstsnow
+
+
 implicit none
 private
 save
@@ -238,6 +243,21 @@ contains
 
     call addfld ('PSL',        horiz_only,  'A', 'Pa','Sea level pressure')
 
+    !**********************
+    !Water tracers/isotopes
+    !**********************
+     if(trace_water) then
+       do m=1,wtrc_nwset !loop over water tracers
+         call addfld ('TMQ_'//trim(wtrc_out_names(m)), horiz_only, 'A', 'kg/m2   ',&
+                      'Total (vertically integrated) precipitable water for '//trim(wtrc_out_names(m)))
+         call addfld ('TVQ_'//trim(wtrc_out_names(m)), horiz_only, 'A','kg/m/s   ',&
+                      'Total (vertically integrated) meridional flux for '//trim(wtrc_out_names(m)))
+         call addfld ('TUQ_'//trim(wtrc_out_names(m)), horiz_only, 'A','kg/m/s   ',&
+                      'Total (vertically integrated) zonal flux for '//trim(wtrc_out_names(m)))
+       end do
+     end if
+    !**********************
+
     call addfld ('T1000',      horiz_only,  'A', 'K','Temperature at 1000 mbar pressure surface')
     call addfld ('T925',       horiz_only,  'A', 'K','Temperature at 925 mbar pressure surface')
     call addfld ('T850',       horiz_only,  'A', 'K','Temperature at 850 mbar pressure surface')
@@ -279,6 +299,17 @@ contains
     call register_vector_field('UBOT', 'VBOT')
 
     call addfld ('ZBOT',       horiz_only,  'A', 'm','Lowest model level height')
+
+    ! Water tracers:
+    ! NOTE:  may need better method for handling multiple water tracers versus
+    ! just hard-coding them in, but for now, this will do, at least for water
+    ! isotopes. -JN
+    if(trace_water) then !Are water tracers on?
+      do m=1,wtrc_nwset
+        call addfld (trim(wtrc_srfvap_names(m))//'BT', horiz_only,   'A','kg/kg   ',&
+                     'Lowest model level mixing ratio for '//trim(wtrc_srfvap_names(m)))
+      end do
+    end if
 
     call addfld ('ATMEINT',    horiz_only,  'A', 'J/m2','Vertically integrated total atmospheric energy ')
 
@@ -474,11 +505,31 @@ contains
     call addfld ('PRECCav',  horiz_only, 'A', 'm/s','Average large-scale precipitation (liq + ice)'                      )
     call addfld ('PRECLav',  horiz_only, 'A', 'm/s','Average convective precipitation  (liq + ice)'                      )
 
+    !**********************
+    !water tracers/isotopes
+    !**********************
+    if(trace_water) then
+      do m=1,wtrc_nwset
+        call addfld ('PRECT_'//trim(wtrc_out_names(m)), horiz_only, 'A', 'm/s     ',&
+                     'Total (convective and large-scale) precipitation rate (liq + ice) for '//trim(wtrc_out_names(m)))
+      end do
+    end if
+    !**********************
+
+
     ! outfld calls in diag_surf
 
     call addfld ('SHFLX',    horiz_only, 'A', 'W/m2','Surface sensible heat flux')
     call addfld ('LHFLX',    horiz_only, 'A', 'W/m2','Surface latent heat flux')
     call addfld ('QFLX',     horiz_only, 'A', 'kg/m2/s','Surface water flux')
+
+    ! Water tracers:
+    if(trace_water) then !Are water tracers on?
+      do m=1,wtrc_nwset
+        call addfld ('QFLX_'//trim(wtrc_out_names(m)),horiz_only, 'A','kg/m2/s ',&
+                     'Surface water flux for '//trim(wtrc_out_names(m)))
+      end do
+    end if
 
     call addfld ('TAUX',     horiz_only, 'A', 'N/m2','Zonal surface stress')
     call addfld ('TAUY',     horiz_only, 'A', 'N/m2','Meridional surface stress')
@@ -1132,6 +1183,12 @@ contains
     call outfld ('VBOT    ', state%v(1,pver)  ,  pcols, lchnk)
     call outfld ('ZBOT    ', state%zm(1,pver) , pcols, lchnk)
 
+    if(trace_water) then !using water tracers or isotopes?
+      do m=1, wtrc_nwset
+        call outfld (trim(wtrc_srfvap_names(m))//'BT', state%q(1,pver,wtrc_iatype(m,iwtvap)), pcols, lchnk)
+      end do
+    end if
+
     !! Boundary layer atmospheric stability, temperature, water vapor diagnostics
 
     p_surf_t = -99.0_r8 ! Uninitialized to impossible value
@@ -1300,6 +1357,34 @@ contains
       ftem(:ncol,1) = ftem(:ncol,1) + ftem(:ncol,k)
     end do
     call outfld ('TMQ     ',ftem, pcols   ,lchnk     )
+
+    !**********************
+    !Water tracers/isotopes
+    !**********************
+     if(trace_water) then
+       do m=1,wtrc_nwset
+       !-----------
+         ftem(:ncol,:) = state%q(:ncol,:,wtrc_iatype(m,iwtvap)) * state%pdel(:ncol,:) * rga
+         do k=2,pver
+           ftem(:ncol,1) = ftem(:ncol,1) + ftem(:ncol,k)
+         end do
+         call outfld ('TMQ_'//trim(wtrc_out_names(m)), ftem, pcols, lchnk)
+       !-----------
+         ftem(:ncol,:) = state%v(:ncol,:)*state%q(:ncol,:,wtrc_iatype(m,iwtvap)) * state%pdel(:ncol,:) * rga
+         do k=2,pver
+           ftem(:ncol,1) = ftem(:ncol,1) + ftem(:ncol,k)
+         end do
+         call outfld ('TVQ_'//trim(wtrc_out_names(m)), ftem, pcols, lchnk)
+       !-----------
+         ftem(:ncol,:) = state%u(:ncol,:)*state%q(:ncol,:,wtrc_iatype(m,iwtvap)) * state%pdel(:ncol,:) * rga
+         do k=2,pver
+           ftem(:ncol,1) = ftem(:ncol,1) + ftem(:ncol,k)
+         end do
+         call outfld ('TUQ_'//trim(wtrc_out_names(m)), ftem, pcols, lchnk)
+       end do
+       !-----------
+     end if
+    !**********************
 
     ! Relative humidity
     if (hist_fld_active('RELHUM')) then
@@ -1491,6 +1576,8 @@ contains
     !-----------------------------------------------------------------------
     use physconst,     only: cpair
     use tidal_diag,    only: get_tidal_coeffs
+    !water tracers:
+    use water_tracers, only: wtrc_output_precip
 
     ! Arguments:
 
@@ -1507,6 +1594,10 @@ contains
     real(r8), pointer :: snow_sed(:)                ! snow from ZM   convection
     real(r8), pointer :: prec_pcw(:)                ! total precipitation   from Hack convection
     real(r8), pointer :: snow_pcw(:)                ! snow from Hack   convection
+
+    !water tracers/isotopes:
+    real(r8), pointer :: wtprec(:)      !water tracer precipitation
+    real(r8)          :: wtprect(pcols) !total water tracer precipitation
 
     ! Local variables:
 
@@ -1620,6 +1711,35 @@ contains
       call outfld('PRECT   ', prect, pcols, lchnk )
       call outfld('PRECTMX ', prect, pcols, lchnk )
 
+      !**********************
+      !Water tracers/isotopes
+      !**********************
+       if(trace_water) then
+         ! Output water tracer precipitation fields:
+          call wtrc_output_precip(state, pbuf)
+
+         !calculate total tracer precipitation:
+         !------------------------------------
+         do m=1,wtrc_nwset
+           !convective rain:
+           call pbuf_get_field(pbuf, wtrc_srfpcp_indices(iwtcvrain,m), wtprec)
+           wtprect(:ncol) = wtprec(:ncol) !add to sum
+           !convective snow:
+           call pbuf_get_field(pbuf, wtrc_srfpcp_indices(iwtcvsnow,m), wtprec)
+           wtprect(:ncol) = wtprect(:ncol) + wtprec(:ncol)
+           !stratiform rain:
+           call pbuf_get_field(pbuf, wtrc_srfpcp_indices(iwtstrain,m), wtprec)
+           wtprect(:ncol) = wtprect(:ncol) + wtprec(:ncol)
+           !stratiform snow:
+           call pbuf_get_field(pbuf, wtrc_srfpcp_indices(iwtstsnow,m), wtprec)
+           wtprect(:ncol) = wtprect(:ncol) + wtprec(:ncol)
+           !add to output variable:
+           call outfld('PRECT_'//trim(wtrc_out_names(m)), wtprect, pcols, lchnk)
+         end do
+         !----------------------------------
+       end  if
+      !**********************
+
       call outfld('PRECLav ', precl, pcols, lchnk )
       call outfld('PRECCav ', precc, pcols, lchnk )
 
@@ -1711,6 +1831,14 @@ contains
       call outfld('TREFHTMN', cam_in%tref,      pcols, lchnk)
       call outfld('QREFHT',   cam_in%qref,      pcols, lchnk)
       call outfld('U10',      cam_in%u10,       pcols, lchnk)
+
+      ! Water tracers:
+      if(trace_water) then
+        do m=1,wtrc_nwset
+          call outfld ('QFLX_'//trim(wtrc_out_names(m)), cam_in%cflx(1,wtrc_iatype(m,iwtvap)), pcols, lchnk)
+        end do
+      end if
+
       !
       ! Calculate and output reference height RH (RHREFHT)
 
