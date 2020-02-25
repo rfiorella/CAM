@@ -3192,6 +3192,9 @@ if ($water_tracer ne 'none') {
   add_default($nl, 'wisotope',               'val'=>'.true.');
   add_default($nl, 'flds_wiso',              'val'=>'.true.');
 
+  #Assume user is using standard isotopic supersaturation parameterization.
+  add_default($nl, 'wtrc_use_ice_supsat',  'val'=>'.false.');
+
   # For now while testing.
   add_default($nl, 'wtrc_check_total_h2o',   'val'=>'.true.');
   add_default($nl, 'wtrc_lzmlin',            'val'=>'.true.');
@@ -3202,7 +3205,7 @@ if ($water_tracer ne 'none') {
   my $wtrc_srfvap_names_list = "";
 
   foreach my $isotope (@isotopes) {
-     
+
      print "======= $isotope \n";
      # H2O
      #

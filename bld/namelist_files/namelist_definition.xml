@@ -4800,6 +4800,15 @@ DO NOT USE REMOVE
 Default: True
 </entry>
 
+<entry id="wtrc_use_ice_supsat" type="logical" category="water_tracers"
+       group="water_tracer_nl" valid_values="">
+Indicates if the model-derived supersaturation with respect to ice should
+be used to calculate the isotopic fractionation during deposition, instead
+of the deafult, temperature-dependent ice superaturation parameterization
+values.
+Default: False
+</entry>
+
 <entry id="wtrc_qchkmin" type="real"  category="water_tracers"
        group="water_tracer_nl" valid_values="">
 The relative error threshold that will trigger a mass conservation error from the water
