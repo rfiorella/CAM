@@ -898,8 +898,9 @@ end if
        call pbuf_get_field(pbuf, wtrc_srfpcp_indices(iwtcvrain,i), wtprec)
        call pbuf_get_field(pbuf, wtrc_srfpcp_indices(iwtcvsnow,i), wtsnow)
 
-       wtprec(:) = wtprect(:,wtrc_iatype(i,iwtvap)) - wtsnowt(:,wtrc_iatype(i,iwtvap)) !assign values (should be rain only)
-       wtsnow(:) = wtsnowt(:,wtrc_iatype(i,iwtvap))                                    !(snow only)
+       !RPF - bound by 0 to eliminate negative precip rates
+       wtprec(:) = max(0._r8, wtprect(:,wtrc_iatype(i,iwtvap)) - wtsnowt(:,wtrc_iatype(i,iwtvap))) !assign values (should be rain only)
+       wtsnow(:) = max(0._r8, wtsnowt(:,wtrc_iatype(i,iwtvap)))                                    !(snow only)
      end do
    end if
 !----------------------------------------------------------
