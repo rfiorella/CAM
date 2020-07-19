@@ -142,6 +142,28 @@
     <lname>HIST_CAM60_CLM50%BGC-CROP_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV_BGC%BDRD</lname>
   </compset>
 
+  <!-- CAM water isotope compsets -->
+
+  <compset>
+    <alias>FiHIST</alias>
+    <lname>HIST_CAM60%WISO_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV</lname>
+  </compset>
+
+  <compset>
+    <alias>Fi2010climo</alias>
+    <lname>2010_CAM60%WISO_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV</lname>
+  </compset>
+
+  <compset>
+    <alias>Fi2000climo</alias>
+    <lname>2000_CAM60%WISO_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV</lname>
+  </compset>
+
+  <compset>
+    <alias>Fi1850climo</alias>
+    <lname>1850_CAM60%WISO_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV</lname>
+  </compset>
+
   <!-- CAM simpler model compsets -->
 
   <compset>
