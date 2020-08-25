@@ -33,7 +33,7 @@ contains
     use water_tracer_vars, only: wtrc_nsrfvap, wtrc_iasrfvap, wtrc_indices, wtrc_species, &
                                  trace_water
     use water_tracers    , only: wtrc_ratio
-    use water_isotopes   , only: isph2o, isph216o, isphdo, isph218o
+    use water_isotopes   , only: isph2o, isph216o, isphdo, isph218o, isph217o, isphto
 
     !
     ! Arguments
@@ -93,6 +93,10 @@ contains
                    cam_in(c)%cflx(i,wtrc_indices(wtrc_iasrfvap(j))) = -x2a(index_x2a_Faxx_evap_HDO,ig)
                  case (isph218o)
                    cam_in(c)%cflx(i,wtrc_indices(wtrc_iasrfvap(j))) = -x2a(index_x2a_Faxx_evap_18O,ig)
+                 case (isph217o)
+                   cam_in(c)%cflx(i,wtrc_indices(wtrc_iasrfvap(j))) = -x2a(index_x2a_Faxx_evap_17O,ig)
+                 case (isphto)
+                   cam_in(c)%cflx(i,wtrc_indices(wtrc_iasrfvap(j))) = -x2a(index_x2a_Faxx_evap_HTO,ig)
                end select
              end do
           end if
@@ -283,7 +287,7 @@ contains
     use water_tracer_vars, only: wtrc_nsrfvap, wtrc_iasrfvap, wtrc_indices, wtrc_species, &
                                  trace_water
     use water_tracers    , only: wtrc_ratio
-    use water_isotopes   , only: isph2o, isph216o, isphdo, isph218o
+    use water_isotopes   , only: isph2o, isph216o, isphdo, isph218o, isph217o, isphto
 
     !
     ! Arguments
@@ -297,8 +301,9 @@ contains
     integer :: i,j,m,c,n,ig       ! indices
     integer :: ncols            ! Number of columns
     integer :: nstep
-   !water tracers:
-    logical :: pass16, passD, pass18 !logicals that prevent the passing of water tag infromation to iCLM4.
+
+    !water tracers:
+    logical :: pass16, passD, pass18, pass17, passT !logicals that prevent the passing of water tag info to surface comps.
     !-----------------------------------------------------------------------
 
     ! Copy from component arrays into chunk array data structure
@@ -329,11 +334,15 @@ contains
             a2x(index_a2x_Sa_shum_16O   ,ig) = 0._r8
             a2x(index_a2x_Sa_shum_HDO   ,ig) = 0._r8
             a2x(index_a2x_Sa_shum_18O   ,ig) = 0._r8
+            a2x(index_a2x_Sa_shum_17O   ,ig) = 0._r8
+            a2x(index_a2x_Sa_shum_HTO   ,ig) = 0._r8
 
            !logical to prevent surface vapor from tags being passed on. -JN
             pass16 = .true.
             passD  = .true.
             pass18 = .true.
+            pass17 = .true.
+            passT  = .true.
 
             do j = 1, wtrc_nsrfvap
               select case(wtrc_species(wtrc_iasrfvap(j)))
@@ -343,7 +352,7 @@ contains
                     pass16 = .false.
                   end if
                 case (isphdo)
-                  if(passD) then !pass on HDO?
+                  if(passD) then !pass on HD16O?
                     a2x(index_a2x_Sa_shum_HDO   ,ig) = cam_out(c)%qbot(i,wtrc_indices(wtrc_iasrfvap(j)))
                     passD = .false.
                   end if
@@ -351,6 +360,16 @@ contains
                   if(pass18) then !pass on H218O?
                     a2x(index_a2x_Sa_shum_18O   ,ig) = cam_out(c)%qbot(i,wtrc_indices(wtrc_iasrfvap(j)))
                     pass18 = .false.
+                  end if
+                case (isph217o)
+                  if(pass17) then !pass on H217O?
+                    a2x(index_a2x_Sa_shum_17O   ,ig) = cam_out(c)%qbot(i,wtrc_indices(wtrc_iasrfvap(j)))
+                    pass17 = .false.
+                  end if
+                case (isphto)
+                  if(passT) then !pass on HT16O?
+                    a2x(index_a2x_Sa_shum_HTO   ,ig) = cam_out(c)%qbot(i,wtrc_indices(wtrc_iasrfvap(j)))
+                    passT = .false.
                   end if
               end select
             end do
@@ -383,6 +402,14 @@ contains
             a2x(index_a2x_Faxa_snowl_18O,ig)=cam_out(c)%precsl_18O(i)*1000._r8
             a2x(index_a2x_Faxa_rainc_18O,ig)=cam_out(c)%precrc_18O(i)*1000._r8
             a2x(index_a2x_Faxa_snowc_18O,ig)=cam_out(c)%precsc_18O(i)*1000._r8
+            a2x(index_a2x_Faxa_rainl_17O,ig)=cam_out(c)%precrl_17O(i)*1000._r8
+            a2x(index_a2x_Faxa_snowl_17O,ig)=cam_out(c)%precsl_17O(i)*1000._r8
+            a2x(index_a2x_Faxa_rainc_17O,ig)=cam_out(c)%precrc_17O(i)*1000._r8
+            a2x(index_a2x_Faxa_snowc_17O,ig)=cam_out(c)%precsc_17O(i)*1000._r8
+            a2x(index_a2x_Faxa_rainl_HTO,ig)=cam_out(c)%precrl_HTO(i)*1000._r8
+            a2x(index_a2x_Faxa_snowl_HTO,ig)=cam_out(c)%precsl_HTO(i)*1000._r8
+            a2x(index_a2x_Faxa_rainc_HTO,ig)=cam_out(c)%precrc_HTO(i)*1000._r8
+            a2x(index_a2x_Faxa_snowc_HTO,ig)=cam_out(c)%precsc_HTO(i)*1000._r8
           end if
           !----------------------
 

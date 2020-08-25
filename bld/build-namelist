@@ -3174,13 +3174,26 @@ add_default($nl, 'water_tracer_model', 'val'=>$water_tracer );
 
 print "$water_tracer \n" ;
 
+# Initialize water tracer variables:
 my $wtrc_name = "";
 my $wtrc_spec = "";
 my $wtrc_type = "";
 my $wtrc_srfpcp = "";
+my @isotopes = ();
 
 if ($water_tracer ne 'none') {
-  my @isotopes = split /_/, $water_tracer;
+
+  #Create water isotope species array:
+  if ($water_tracer eq 'all_stable_wiso') {
+    @isotopes = ("h2o", "h216o", "hdo", "h218o", "h217o");
+  }
+  elsif ($water_tracer eq 'all_wiso') {
+    @isotopes = ("h2o", "h216o", "hdo", "h218o", "h217o", "hto");
+  }
+  else {
+    @isotopes = split /_/, $water_tracer;
+  }
+
   my $cnt_iso = 0;
 
   add_default($nl, 'trace_water',        'val'=>'.true.');
@@ -3230,6 +3243,7 @@ if ($water_tracer ne 'none') {
 
      # HDO
      } elsif ($isotope eq 'hdo') {
+
        $cnt_iso += 1;
        if ($cnt_iso == 2) {
           die "ERROR: When specifying water isotopes, h216o must be in the second position, but specified $water_tracer \n";
@@ -3258,6 +3272,7 @@ if ($water_tracer ne 'none') {
 
      # H216O
      } elsif ($isotope eq 'h216o') {
+
        $cnt_iso += 1;
        if ($cnt_iso != 2) {
           die "ERROR: When specifying water isotopes, h216o must be in the second position, but specified $water_tracer \n";
@@ -3269,6 +3284,35 @@ if ($water_tracer ne 'none') {
        $wtrc_type              .= "'VAPOR','LIQUID','ICE','RAINS','SNOWS','RAINC','SNOWC',";
        $wtrc_srfpcp            .= "'H216OR','H216Or','H216OS','H216Os',";
        $wtrc_srfvap_names_list .= "'H216OV',";
+
+     # H217O
+     } elsif ($isotope eq 'h217o') {
+
+       $cnt_iso += 1;
+       if ($cnt_iso == 2) {
+          die "ERROR: When specifying water isotopes, h216o must be in the second position, but specified $water_tracer \n";
+       }
+       add_default($nl, 'wtrc_alpha_kinetic',   'val'=>'.true.');
+
+       $wtrc_name              .= "'H217OV','H217OL','H217OI','H217OR','H217OS','H217Or','H217Os',";
+       $wtrc_spec              .= "'H217O','H217O','H217O','H217O','H217O','H217O','H217O',";
+       $wtrc_type              .= "'VAPOR','LIQUID','ICE','RAINS','SNOWS','RAINC','SNOWC',";
+       $wtrc_srfpcp            .= "'H217OR','H217Or','H217OS','H217Os',";
+       $wtrc_srfvap_names_list .= "'H217OV',";
+
+     # HTO
+     } elsif ($isotope eq 'hto') {
+
+       $cnt_iso += 1;
+       if ($cnt_iso == 2) {
+          die "ERROR: When specifying water isotopes, h216o must be in the second position, but specified $water_tracer \n";
+       }
+       add_default($nl, 'wtrc_alpha_kinetic',   'val'=>'.true.');
+       $wtrc_name              .= "'HTOV','HTOL','HTOI','HTOR','HTOS','HTOr','HTOs'";
+       $wtrc_spec              .= "'HT16O','HT16O','HT16O','HT16O','HT16O','HT16O','HT16O'";
+       $wtrc_type              .= "'VAPOR','LIQUID','ICE','RAINS','SNOWS','RAINC','SNOWC'";
+       $wtrc_srfpcp            .= "'HTOR','HTOr','HTOS','HTOs'";
+       $wtrc_srfvap_names_list .= "'HTOV',";
 
      } else {
        die "$ProgName - ERROR: water_tracer type ($isotope) in config_cache file is NOT known by build-namelist . \n";

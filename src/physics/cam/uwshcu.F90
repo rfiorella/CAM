@@ -515,6 +515,7 @@ end subroutine uwshcu_readnl
     use water_tracers,     only : wtrc_ratio, wtrc_get_alpha, wtrc_liqvap_equil, &
                                   wtrc_is_wtrc, wtrc_get_rstd, wtrc_equil_time
     use water_types,       only : iwtvap, iwtliq, iwtice
+    use water_isotopes,    only : difrm, dkfac
 
 
     implicit none
@@ -751,8 +752,6 @@ end subroutine uwshcu_readnl
     real(r8)    wtflxsn(0:mkx,wtrc_nwset)                     !  water tracer snow flux [ kg/m2/s ]
     real(r8)    wtevp(mkx,wtrc_nwset)                         !  water tracer rain evaporation [ kg/kg/s ]
     real(r8)    wtsub(mkx,wtrc_nwset)                         !  water tracer snow sublimation [ kg/kg/s ]
-    real(r8)    difrm(4)                                      !  Isotopic diffusivity ratios [ unitless ]
-    real(r8)    dkfac                                         !  kinetic fractionation exponent
     real(r8)    phi                                           !  phi value from Bony et. al., 2008
     real(r8)    Rr                                            !  Water tracer rain ratio [ unitless ]
     real(r8)    Rv                                            !  Water tracer vapor ratio [ unitless ]
@@ -4722,10 +4721,6 @@ end subroutine uwshcu_readnl
          !NOTE:  The precipitation evaporation code was taken almost directly
          !from the wtrc_precip_evap subroutine.  So, if there is a way to call
          !the routine from here, it might reduce code redundancy. - JN
-
-         !Diffusivity ratios and powers (should be called from water_isotopes.F90 eventually):
-          difrm = (/ 1._r8, 1._r8, 0.9757_r8, 0.9727_r8 /)         ! Merlivat 1978 (direct from paper)
-          dkfac = 0.58_r8                                          ! From Stewart, 1975?
 
          !phi value given in Bony et. al., 2008:
           phi = 0.9_r8

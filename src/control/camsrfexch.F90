@@ -81,15 +81,23 @@ module camsrfexch
      real(r8),allocatable :: precrl_16O(:)   !Large-scale rain
      real(r8),allocatable :: precrl_HDO(:)
      real(r8),allocatable :: precrl_18O(:)
+     real(r8),allocatable :: precrl_17O(:)
+     real(r8),allocatable :: precrl_HTO(:)
      real(r8),allocatable :: precsl_16O(:)   !Large-scale snow
      real(r8),allocatable :: precsl_HDO(:)
      real(r8),allocatable :: precsl_18O(:)
+     real(r8),allocatable :: precsl_17O(:)
+     real(r8),allocatable :: precsl_HTO(:)
      real(r8),allocatable :: precrc_16O(:)   !Convective rain
      real(r8),allocatable :: precrc_HDO(:)
-     real(r8),allocatable :: precrc_18O(:)   
+     real(r8),allocatable :: precrc_18O(:)
+     real(r8),allocatable :: precrc_17O(:)
+     real(r8),allocatable :: precrc_HTO(:)
      real(r8),allocatable :: precsc_16O(:)   !Convective snow
      real(r8),allocatable :: precsc_HDO(:)
      real(r8),allocatable :: precsc_18O(:)
+     real(r8),allocatable :: precsc_17O(:)
+     real(r8),allocatable :: precsc_HTO(:)
   end type cam_out_t 
 
   !---------------------------------------------------------------------------
@@ -310,6 +318,16 @@ CONTAINS
          write(iulog,*) 'Allocation error: ', ierror
          call endrun('ATM2HUB_ALLOC error: allocation error')
        end if
+       allocate(cam_out(c)%precrl_17O(pcols), stat=ierror)
+       if ( ierror /= 0 )then
+         write(iulog,*) 'Allocation error: ', ierror
+         call endrun('ATM2HUB_ALLOC error: allocation error')
+       end if
+       allocate(cam_out(c)%precrl_HTO(pcols), stat=ierror)
+       if ( ierror /= 0 )then
+         write(iulog,*) 'Allocation error: ', ierror
+         call endrun('ATM2HUB_ALLOC error: allocation error')
+       end if
        allocate(cam_out(c)%precsl_16O(pcols), stat=ierror)   !Large-scale snow
        if ( ierror /= 0 )then
          write(iulog,*) 'Allocation error: ', ierror
@@ -325,6 +343,16 @@ CONTAINS
          write(iulog,*) 'Allocation error: ', ierror
          call endrun('ATM2HUB_ALLOC error: allocation error')
        end if
+       allocate(cam_out(c)%precsl_17O(pcols), stat=ierror)
+       if ( ierror /= 0 )then
+         write(iulog,*) 'Allocation error: ', ierror
+         call endrun('ATM2HUB_ALLOC error: allocation error')
+       end if
+       allocate(cam_out(c)%precsl_HTO(pcols), stat=ierror)
+       if ( ierror /= 0 )then
+         write(iulog,*) 'Allocation error: ', ierror
+         call endrun('ATM2HUB_ALLOC error: allocation error')
+       end if
        allocate(cam_out(c)%precrc_16O(pcols), stat=ierror)   !Convective rain
        if ( ierror /= 0 )then
          write(iulog,*) 'Allocation error: ', ierror
@@ -335,7 +363,17 @@ CONTAINS
          write(iulog,*) 'Allocation error: ', ierror
          call endrun('ATM2HUB_ALLOC error: allocation error')
        end if
-       allocate(cam_out(c)%precrc_18O(pcols), stat=ierror)   
+       allocate(cam_out(c)%precrc_18O(pcols), stat=ierror)
+       if ( ierror /= 0 )then
+         write(iulog,*) 'Allocation error: ', ierror
+         call endrun('ATM2HUB_ALLOC error: allocation error')
+       end if
+       allocate(cam_out(c)%precrc_17O(pcols), stat=ierror)
+       if ( ierror /= 0 )then
+         write(iulog,*) 'Allocation error: ', ierror
+         call endrun('ATM2HUB_ALLOC error: allocation error')
+       end if
+       allocate(cam_out(c)%precrc_HTO(pcols), stat=ierror)
        if ( ierror /= 0 )then
          write(iulog,*) 'Allocation error: ', ierror
          call endrun('ATM2HUB_ALLOC error: allocation error')
@@ -351,6 +389,16 @@ CONTAINS
          call endrun('ATM2HUB_ALLOC error: allocation error')
        end if
        allocate(cam_out(c)%precsc_18O(pcols), stat=ierror)
+       if ( ierror /= 0 )then
+         write(iulog,*) 'Allocation error: ', ierror
+         call endrun('ATM2HUB_ALLOC error: allocation error')
+       end if
+       allocate(cam_out(c)%precsc_17O(pcols), stat=ierror)
+       if ( ierror /= 0 )then
+         write(iulog,*) 'Allocation error: ', ierror
+         call endrun('ATM2HUB_ALLOC error: allocation error')
+       end if
+       allocate(cam_out(c)%precsc_HTO(pcols), stat=ierror)
        if ( ierror /= 0 )then
          write(iulog,*) 'Allocation error: ', ierror
          call endrun('ATM2HUB_ALLOC error: allocation error')
@@ -402,16 +450,24 @@ CONTAINS
        cam_out(c)%precrl_16O  = 0._r8
        cam_out(c)%precrl_HDO  = 0._r8
        cam_out(c)%precrl_18O  = 0._r8
+       cam_out(c)%precrl_17O  = 0._r8
+       cam_out(c)%precrl_HTO  = 0._r8
        cam_out(c)%precsl_16O  = 0._r8
        cam_out(c)%precsl_HDO  = 0._r8
        cam_out(c)%precsl_18O  = 0._r8
+       cam_out(c)%precsl_17O  = 0._r8
+       cam_out(c)%precsl_HTO  = 0._r8
        cam_out(c)%precrc_16O  = 0._r8
        cam_out(c)%precrc_HDO  = 0._r8
        cam_out(c)%precrc_18O  = 0._r8
+       cam_out(c)%precrc_17O  = 0._r8
+       cam_out(c)%precrc_HTO  = 0._r8
        cam_out(c)%precsc_16O  = 0._r8
        cam_out(c)%precsc_HDO  = 0._r8
        cam_out(c)%precsc_18O  = 0._r8
- 
+       cam_out(c)%precrc_17O  = 0._r8
+       cam_out(c)%precrc_HTO  = 0._r8
+
        nullify(cam_out(c)%nhx_nitrogen_flx)
        nullify(cam_out(c)%noy_nitrogen_flx)
 
@@ -506,7 +562,7 @@ subroutine cam_export(state,cam_out,pbuf)
    use water_tracer_vars,only: trace_water, wtrc_srfpcp_indices, wtrc_nwset, wtrc_iatype,&
                                iwspec
    use water_types,      only: iwtstrain, iwtstsnow, iwtcvrain, iwtcvsnow
-   use water_isotopes,   only: isph2o, isph216o, isphdo, isph218o
+   use water_isotopes,   only: isph2o, isph216o, isphdo, isph218o, isph217o, isphto
 
    implicit none
 
@@ -536,22 +592,30 @@ subroutine cam_export(state,cam_out,pbuf)
    real(r8), pointer :: prec_pcw(:)                ! total precipitation   from Hack convection
    real(r8), pointer :: snow_pcw(:)                ! snow from Hack   convection
    !water tracers/isotopes:
-   logical           :: exist16, existD, exist18   !logicals that determine whether or not species exists in run.
-   logical           :: pass16, passD, pass18      !logicals that prevent the passing of water tag infromation to iCLM4.
+   logical           :: exist16, existD, exist18, exist17, existT !logicals that determine whether or not species exists in run.
+   logical           :: pass16, passD, pass18, pass17, passT      !logicals that prevent the passing of water tag infromation to iCLM4.
    real(r8), pointer :: precrl_16O(:)
    real(r8), pointer :: precrl_HDO(:)
    real(r8), pointer :: precrl_18O(:)
+   real(r8), pointer :: precrl_17O(:)
+   real(r8), pointer :: precrl_HTO(:)
    real(r8), pointer :: precsl_16O(:)
    real(r8), pointer :: precsl_HDO(:)
    real(r8), pointer :: precsl_18O(:)
+   real(r8), pointer :: precsl_17O(:)
+   real(r8), pointer :: precsl_HTO(:)
    real(r8), pointer :: precrc_16O(:)
    real(r8), pointer :: precrc_HDO(:)
    real(r8), pointer :: precrc_18O(:)
+   real(r8), pointer :: precrc_17O(:)
+   real(r8), pointer :: precrc_HTO(:)
    real(r8), pointer :: precsc_16O(:)
    real(r8), pointer :: precsc_HDO(:)
    real(r8), pointer :: precsc_18O(:)
+   real(r8), pointer :: precsc_17O(:)
+   real(r8), pointer :: precsc_HTO(:)
 
-   !NOTE:  This water tracer code can currently only handle three water tracers/isotopes.
+   !NOTE:  This water tracer code can currently only handle five water tracers/isotopes.
    !It might be beneficial in the future to make this setup more flexible, with
    !a few variables containing all of the needed data [e.g., prec(n), where n is the
    !number of water tracers or isotopes]. - JN.
@@ -604,13 +668,16 @@ subroutine cam_export(state,cam_out,pbuf)
      exist16 = .false. !Initalize logicals
      existD  = .false.
      exist18 = .false.
+     exist17 = .false.
+     existT  = .false.
      pass16  = .true.
      passD   = .true.
      pass18  = .true.
+     pass17  = .true.
+     passT   = .true.
      do m=1, wtrc_nwset !loop over water tracer precip.
        select case(iwspec(wtrc_iatype(m,iwtstrain))) !determine water species
-         case(isph2o) !H2O
-         !Do nothing. This call may not be needed... -JN
+         !Do nothing for H2O, so start with H216O.
          case(isph216o) !H216O 
            if(pass16) then !first call for H216O?
              exist16 = .true.
@@ -637,6 +704,24 @@ subroutine cam_export(state,cam_out,pbuf)
              call pbuf_get_field(pbuf,wtrc_srfpcp_indices(iwtcvrain,m), precrc_18O)
              call pbuf_get_field(pbuf,wtrc_srfpcp_indices(iwtcvsnow,m), precsc_18O)
              pass18 = .false.
+           end if
+         case(isph217o) !H218O
+           if(pass17) then !first call for H217O?
+             exist17 = .true.
+             call pbuf_get_field(pbuf,wtrc_srfpcp_indices(iwtstrain,m), precrl_17O)
+             call pbuf_get_field(pbuf,wtrc_srfpcp_indices(iwtstsnow,m), precsl_17O)
+             call pbuf_get_field(pbuf,wtrc_srfpcp_indices(iwtcvrain,m), precrc_17O)
+             call pbuf_get_field(pbuf,wtrc_srfpcp_indices(iwtcvsnow,m), precsc_17O)
+             pass17 = .false.
+           end if
+         case(isphto) !HT16O
+           if(passT) then !first call for HTO?
+             existT = .true.
+             call pbuf_get_field(pbuf,wtrc_srfpcp_indices(iwtstrain,m), precrl_HTO)
+             call pbuf_get_field(pbuf,wtrc_srfpcp_indices(iwtstsnow,m), precsl_HTO)
+             call pbuf_get_field(pbuf,wtrc_srfpcp_indices(iwtcvrain,m), precrc_HTO)
+             call pbuf_get_field(pbuf,wtrc_srfpcp_indices(iwtcvsnow,m), precsc_HTO)
+             passT = .false.
            end if
        end select
      end do
@@ -729,19 +814,39 @@ subroutine cam_export(state,cam_out,pbuf)
           cam_out%precrc_18O(i)  = precrc_18O(i)
           cam_out%precsc_18O(i)  = precsc_18O(i)  
         end if
+        if(exist17) then
+          cam_out%precrl_17O(i)  = precrl_17O(i)
+          cam_out%precsl_17O(i)  = precsl_17O(i)
+          cam_out%precrc_17O(i)  = precrc_17O(i)
+          cam_out%precsc_17O(i)  = precsc_17O(i)
+        end if
+        if(existT) then
+          cam_out%precrl_HTO(i)  = precrl_HTO(i)
+          cam_out%precsl_HTO(i)  = precsl_HTO(i)
+          cam_out%precrc_HTO(i)  = precrc_HTO(i)
+          cam_out%precsc_HTO(i)  = precsc_HTO(i)
+        end if
        !negative value prevention:
         if (cam_out%precrl_16O(i) .lt. 0._r8) cam_out%precrl_16O(i)=0._r8
         if (cam_out%precrl_HDO(i) .lt. 0._r8) cam_out%precrl_HDO(i)=0._r8
         if (cam_out%precrl_18O(i) .lt. 0._r8) cam_out%precrl_18O(i)=0._r8
+        if (cam_out%precrl_17O(i) .lt. 0._r8) cam_out%precrl_17O(i)=0._r8
+        if (cam_out%precrl_HTO(i) .lt. 0._r8) cam_out%precrl_HTO(i)=0._r8
         if (cam_out%precsl_16O(i) .lt. 0._r8) cam_out%precsl_16O(i)=0._r8
         if (cam_out%precsl_HDO(i) .lt. 0._r8) cam_out%precsl_HDO(i)=0._r8
         if (cam_out%precsl_18O(i) .lt. 0._r8) cam_out%precsl_18O(i)=0._r8
+        if (cam_out%precsl_17O(i) .lt. 0._r8) cam_out%precsl_17O(i)=0._r8
+        if (cam_out%precsl_HTO(i) .lt. 0._r8) cam_out%precsl_HTO(i)=0._r8
         if (cam_out%precrc_16O(i) .lt. 0._r8) cam_out%precrc_16O(i)=0._r8
         if (cam_out%precrc_HDO(i) .lt. 0._r8) cam_out%precrc_HDO(i)=0._r8
         if (cam_out%precrc_18O(i) .lt. 0._r8) cam_out%precrc_18O(i)=0._r8
+        if (cam_out%precrc_17O(i) .lt. 0._r8) cam_out%precrc_17O(i)=0._r8
+        if (cam_out%precrc_HTO(i) .lt. 0._r8) cam_out%precrc_HTO(i)=0._r8
         if (cam_out%precsc_16O(i) .lt. 0._r8) cam_out%precsc_16O(i)=0._r8
         if (cam_out%precsc_HDO(i) .lt. 0._r8) cam_out%precsc_HDO(i)=0._r8
         if (cam_out%precsc_18O(i) .lt. 0._r8) cam_out%precsc_18O(i)=0._r8
+        if (cam_out%precsc_17O(i) .lt. 0._r8) cam_out%precsc_17O(i)=0._r8
+        if (cam_out%precsc_HTO(i) .lt. 0._r8) cam_out%precsc_HTO(i)=0._r8
       end if
       !----------------------
    end do
