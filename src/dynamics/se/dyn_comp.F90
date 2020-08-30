@@ -1035,7 +1035,7 @@ subroutine read_inidat(dyn_in)
 
    use shr_sys_mod,         only: shr_sys_flush
    use hycoef,              only: hyai, hybi, ps0
-   use const_init,          only: cnst_init_default
+   use const_init,          only: cnst_init_default, cnst_store_value
 
    use element_mod,         only: timelevels
    use dimensions_mod,      only: qsize_condensate_loading
@@ -1356,6 +1356,9 @@ subroutine read_inidat(dyn_in)
          else
             call cnst_init_default(m_cnst, latvals, lonvals, dbuf3, pmask)
          end if
+
+         !Water tracers/isotopes:
+         call cnst_store_value(trim(cnst_name(m_cnst)), dbuf3, 3)
 
          do ie = 1, nelemd
             ! Copy tracers defined on GLL grid into Eulerian array
