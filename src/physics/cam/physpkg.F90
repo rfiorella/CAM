@@ -1280,7 +1280,7 @@ contains
 
     !Water Tracers:
     use water_tracer_vars,  only: trace_water
-    use water_tracers,      only: wtrc_check_h2o, wtrc_chem_ch4ox_tend
+    use water_tracers,      only: wtrc_check_h2o, wtrc_chem_ch4ox_tend, wtrc_rad_decay
 
     !
     ! Arguments
@@ -1439,7 +1439,10 @@ contains
        !set of constituents and chemical reactions, then this assumption may
        !not be valid. -JN
        if(trace_water) then
-         call wtrc_chem_ch4ox_tend(state,pbuf,ptend)
+         call wtrc_chem_ch4ox_tend(state, pbuf, ptend)
+
+         !Also apply radioactive decay of Tritium (HTO):
+         call wtrc_rad_decay(state, ptend, ztodt)
        end if
 
        call physics_update(state, ptend, ztodt, tend)

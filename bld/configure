@@ -172,7 +172,8 @@ OPTIONS
                         is chosen.
      -waccmx            Build CAM/WACCM with WACCM upper Thermosphere/Ionosphere extended package
      -water_tracer <name> Build CAM with specified water tracer (isotope or tag) package
-                        [ none | h2o | h2o_h216o_hdo_h218o ].  Default: none
+                        [ none | h2o | h2o_h216o_hdo_h218o | h2o_h216o_h218o_h217o | h2o_h216o_hdo_hto | all_stable_wiso | all_wiso].
+                        Default: none
      -water_tag_num <n> Number of water tags that will be simulated in this CAM build.
      -zmconv_org        Include parameterization for sub-grid scale convective organization for the ZM deep convective scheme based
                         on Mapes and Neale (2011)
@@ -1507,6 +1508,22 @@ if ($water_tracer_pkg ne 'none') {
     if ($water_tracer_pkg eq 'h2o_h216o_hdo_h218o') {
         $water_tracer_nadv += 28;
         $set_wtrc_max_cnst = 28;
+    }
+    if ($water_tracer_pkg eq 'h2o_h216o_h218o_h217o') {
+        $water_tracer_nadv += 28;
+        $set_wtrc_max_cnst = 28;
+    }
+    if ($water_tracer_pkg eq 'h2o_h216o_hdo_hto') {
+        $water_tracer_nadv += 28;
+        $set_wtrc_max_cnst = 28;
+    }
+    if ($water_tracer_pkg eq 'all_stable_wiso') {
+        $water_tracer_nadv += 35;
+        $set_wtrc_max_cnst = 35;
+    }
+    if ($water_tracer_pkg eq 'all_wiso') {
+        $water_tracer_nadv += 42;
+        $set_wtrc_max_cnst = 42;
     }
 
     # Account for the need to add prognostic rain and snow to
