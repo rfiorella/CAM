@@ -1525,6 +1525,11 @@ if ($water_tracer_pkg ne 'none') {
         $water_tracer_nadv += 42;
         $set_wtrc_max_cnst = 42;
     }
+    #RPF - adding constant fractionation...
+    if ($water_tracer_pkg eq 'all_stable_wiso_plus_constfrac') {
+        $water_tracer_nadv += 42;
+        $set_wtrc_max_cnst = 42;
+    } #/RPF
 
     # Account for the need to add prognostic rain and snow to
     # the non-isotopic water.  This will allow looping over all
