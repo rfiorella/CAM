@@ -338,7 +338,7 @@ end subroutine wtrc_init
 ! Purpose: register advected water tracer constituents
 !
 ! Method:
-!  Calls CAM constituent registration routines based on 
+!  Calls CAM constituent registration routines based on
 !  water tracer species and phase indexing. Create a number of tracer
 !  lists, and do some consistency checking of the tracers variables
 !
@@ -354,20 +354,29 @@ end subroutine wtrc_init
     use constituents,   only: cnst_name
     use physics_buffer, only: pbuf_add_field, dtype_r8, dyn_time_lvls
     use spmd_utils,     only: masterproc
-    use ppgrid,         only: pverp  
+    use ppgrid,         only: pverp
+    use pio,            only: file_desc_t, pio_inq_varid, PIO_BCAST_ERROR, PIO_NOERR
+    use pio,            only: pio_seterrorhandling
+    use cam_initfiles,  only: initial_file_get_id
 
     real(r8)             :: mw  ! molecular weight for the constituent
     real(r8)             :: cp  ! specific heat for the constituent
 
     integer              :: itmpndx, icnst, itag, iwset, pidx
 
-    character(len=128)     :: longname
+    character(len=128)   :: longname
 
-   !For wtrc_out_names -JN:
+    !For determining whether or not tracer is read from file:
+    type(file_desc_t), pointer :: fh_ini
+    integer                    :: err_handle
+    integer                    :: ierr
+    integer                    :: wtrc_fil_id
+    logical                    :: readiv_val
+
+    !For wtrc_out_names:
     character(len=8) :: wtstrng = "" !variable name
     integer          :: wtstsz       !name length
     integer          :: icount(pwtype)
-
 
 !-----------------------------------------------------------------------
 !
@@ -377,10 +386,16 @@ end subroutine wtrc_init
     iwspec(:)  = ispundef
     iwistag(:) = .false.
 
-  ! Set the species of the total water as H2O, but DONT set them
-  ! as water tracers, as they are prognostic (not "tracers")
-  !
-  ! Set names of variable tendencies and declare them as history variables
+    ! Set initial conditions file pointer:
+    fh_ini  => initial_file_get_id()
+
+    ! Set PIO error-handling so that a PIO erro doesn't end the model simulation:
+    call pio_seterrorhandling(fh_ini, PIO_BCAST_ERROR, err_handle)
+
+    ! Set the species of the total water as H2O, but DONT set them
+    ! as water tracers, as they are prognostic (not "tracers")
+    !
+    ! Set names of variable tendencies and declare them as history variables
     if (water_tracer_model /= "none") then
 
       if ( masterproc ) then
@@ -482,9 +497,17 @@ end subroutine wtrc_init
           longname = trim(longname) // ' (tagged)'
         end if
 
+        ! Check if tracer is present on initial conditions file:
+        ierr = pio_inq_varid(fh_ini, wtrc_names(icnst), wtrc_fil_id)
+        if (ierr == PIO_NOERR) then
+            readiv_val = .true.
+        else
+            readiv_val = .false.
+        end if
+
         ! Register the water isotope tracer.
         call wtrc_cnst_add(wtrc_names(icnst), wtrc_types(icnst), wtrc_species(icnst), &
-          wtrc_is_tag(icnst), mw, cp, 0._r8, wtrc_indices(icnst), longname, readiv=.false.)
+          wtrc_is_tag(icnst), mw, cp, 0._r8, wtrc_indices(icnst), longname, readiv=readiv_val)
 
         ! Make some indices and counts to make it easier to loop over the isotopes.
         icount(wtrc_types(icnst)) = icount(wtrc_types(icnst))+1
@@ -505,7 +528,10 @@ end subroutine wtrc_init
         end if
       end do
 
-      ! Determine which specifies are coupled to the surface.      
+      ! Set PIO error-handling back to its original value:
+      call pio_seterrorhandling(fh_ini, err_handle)
+
+      ! Determine which specifies are coupled to the surface.
       icnst = 1
       do while(wtrc_srfvap_names(icnst) /= "")
         wtrc_iasrfvap(icnst) = wtrc_get_icnst(wtrc_srfvap_names(icnst))
@@ -533,7 +559,7 @@ end subroutine wtrc_init
       end do
       wtrc_nsrfpcp = icnst-1
 
-      ! Add 2D surface precipitation variables in the physics buffer for each of the 
+      ! Add 2D surface precipitation variables in the physics buffer for each of the
       ! precipitation types and wsets.
       wtrc_srfpcp_indices(:,:) = -1
 
