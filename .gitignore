@@ -18,3 +18,8 @@ buildcppc
 .#*
 \#*#
 *.swp
+
+# RPF - add nudging to ignore
+# don't need to track changes made w/in the nudging folder
+tools/nudging/Gen_Data/ERA5_FVdycore
+tools/nudging/Gen_Data/Gen_Data_FVdycore
