@@ -3194,6 +3194,10 @@ if ($water_tracer ne 'none') {
   elsif ($water_tracer eq 'all_stable_wiso_plus_constfrac') {
     @isotopes = ("h2o", "h216o", "hdo", "h218o", "h217o", "h218ocf");
   }
+  #RPF - adding const fraction option.
+  elsif ($water_tracer eq 'stable_wiso_no17_plus_constfrac') {
+    @isotopes = ("h2o", "h216o", "hdo", "h218o", "h218ocf");
+  }
   else {
     @isotopes = split /_/, $water_tracer;
   }
