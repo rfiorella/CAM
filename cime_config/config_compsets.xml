@@ -176,9 +176,12 @@
     <science_support grid="f19_f19_mg17"/>
   </compset>
 
+<!-- iLQSC6 – active‑land version of iQSC6 (CLM50 + SICE) -->
   <compset>
-    <alias>freakizoid</alias>
-    <lname>2000_CAM60%WISO_CLM50%SP_CICE%PRES_DOCN%SOMAQP_MOSART_CISM2%NOEVOLVE_SWAV</lname>
+    <alias>iLQSC6</alias>
+    <lname>2000_CAM60%WISO_CLM50%SP_SICE_DOCN%SOMAQP_SROF_SGLC_SWAV</lname>
+    <science_support grid="f09_f09_mg17"/>
+    <science_support grid="f19_f19_mg17"/>
   </compset>
 
   <!-- CAM simpler model compsets -->
